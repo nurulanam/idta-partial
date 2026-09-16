@@ -1,0 +1,6 @@
+# Generated plugin archives
+*.zip
+
+# Local files
+*.log
+.DS_Store
