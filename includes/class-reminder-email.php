@@ -72,7 +72,7 @@ final class Reminder_Email extends \WC_Email {
 	 * @return string
 	 */
 	public function get_default_subject(): string {
-		return __( 'You have not finished your International Driving Permit application', 'idta-partial' );
+		return __( 'Your International Driving Permit is one step away', 'idta-partial' );
 	}
 
 	/**
@@ -81,7 +81,7 @@ final class Reminder_Email extends \WC_Email {
 	 * @return string
 	 */
 	public function get_default_heading(): string {
-		return __( 'Pick up where you left off', 'idta-partial' );
+		return __( 'You are one step away', 'idta-partial' );
 	}
 
 	/**

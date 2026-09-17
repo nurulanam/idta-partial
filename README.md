@@ -50,11 +50,33 @@ e-idta.com  ──POST /partial──▶  Cloudflare Worker  ──X-IDTA-Key─
 | Capture partial applications | on | Off: the endpoint returns 200 and stores nothing. |
 | Reminder delay | 12 min | From the moment step 3 was completed. |
 | Count a lead as converted | order created | See below. |
-| Application URL | `https://e-idta.com/application.html` | The reminder link's base. |
+| Front ends | `idta`, `idpa` | Each `source` value paired with that site's application URL. See below. |
 | Reminder cooldown | 7 days | Per address, not per lead. |
 | Keep unconverted leads | 90 days | Then deleted. |
 | Keep converted lead details | 365 days | Then anonymised; the conversion is kept. |
 | Submissions per hour | 20 | Per IP and per address. |
+
+### Front ends (order-from sources)
+
+The storefront sends a `source` with every partial application — read from
+`ORDER_FROM` in `env.txt`, defaulting to `idta`. It is the same value WooCommerce
+stores on the order as `_idp_order_from`, and the same key idta-pdf uses to
+resolve an order's upload bucket.
+
+Each source is paired with that site's application URL, and the reminder links
+back to the URL for the source the application was **started on**. With a single
+global URL, a lead taken on idpa was emailed a link to e-idta.com — a dead end
+for that customer.
+
+The key also controls what the endpoint accepts: a `source` that is not in this
+list falls back to `idta` rather than being stored as given. Adding a front end
+is therefore a settings change, not a code change.
+
+A key with no URL still works for capture; it just cannot be linked back to, and
+a lead from it falls back to the first source that does have one — a reminder
+pointing at the main site beats a reminder with no link at all.
+
+---
 
 ### order created vs paid
 

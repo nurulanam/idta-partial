@@ -26,7 +26,15 @@ printf(
 
 echo "\n\n";
 
-esc_html_e( 'You started an International Driving Permit application with us but did not finish it. Your place is still open.', 'idta-partial' );
+esc_html_e( 'Your International Driving Permit is almost ready - you stopped just before the last step.', 'idta-partial' );
+
+echo "\n\n";
+
+esc_html_e( 'The good news: everything you typed is still saved. One click brings it all back, filled in and waiting, so finishing takes about a minute - and your permit is issued digitally as soon as your application is approved.', 'idta-partial' );
+
+echo "\n\n";
+
+esc_html_e( 'Don\'t let an unfinished form hold up your trip.', 'idta-partial' );
 
 echo "\n\n";
 

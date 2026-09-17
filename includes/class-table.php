@@ -47,6 +47,13 @@ final class Table {
 	 */
 
 	/**
+	 * Cached answer to exists(), for the life of the request.
+	 *
+	 * @var bool|null
+	 */
+	private static ?bool $exists = null;
+
+	/**
 	 * Fully qualified table name.
 	 *
 	 * Built from $wpdb->prefix and a constant, never from input, so it is safe
@@ -95,6 +102,23 @@ final class Table {
 		 * one field per line, KEY names matching the column list. Reformatting
 		 * this block casually will make it try to re-create indexes on every
 		 * run.
+		 *
+		 * On the indexes, which are chosen for the four queries that actually
+		 * run rather than for every column that might one day be filtered:
+		 *
+		 *   status_created  the cleanup job (status + age) and the date-bounded
+		 *                   lookup behind the email fallback.
+		 *   status_id       the leads list, which filters by status and sorts by
+		 *                   id — without it that sort is a filesort.
+		 *   email           the conversion fallback and the reminder cooldown.
+		 *                   One address owns a handful of rows, so the index
+		 *                   finds them and the rest is filtered in place; a
+		 *                   composite here would earn nothing.
+		 *   order_id        reporting, and answering "which lead became this
+		 *                   order?" from the order side.
+		 *
+		 * Nothing speculative: every index costs a write on an upsert, and the
+		 * write path is the one thing here that runs while a customer waits.
 		 */
 		$sql = "CREATE TABLE {$table} (
 			id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
@@ -126,6 +150,7 @@ final class Table {
 			UNIQUE KEY lead_token (lead_token),
 			UNIQUE KEY resume_token (resume_token),
 			KEY status_created (status,created_at),
+			KEY status_id (status,id),
 			KEY email (email),
 			KEY order_id (order_id)
 		) {$collate};";
@@ -133,6 +158,10 @@ final class Table {
 		dbDelta( $sql );
 
 		update_option( self::VERSION_OPTION, self::DB_VERSION );
+
+		// A table created part-way through a request has to be visible to the
+		// rest of it, or everything after this point still believes it missing.
+		self::$exists = true;
 	}
 
 	/**
@@ -145,22 +174,28 @@ final class Table {
 	 * @return bool
 	 */
 	public static function exists(): bool {
-		global $wpdb;
-
-		static $exists = null;
-
-		if ( null !== $exists ) {
-			return $exists;
+		if ( null !== self::$exists ) {
+			return self::$exists;
 		}
 
-		$table = self::name();
+		/*
+		 * Answered from the version option, not from SHOW TABLES.
+		 *
+		 * The option is autoloaded, so it is already in memory by the time
+		 * anything asks — this costs nothing. SHOW TABLES is a metadata query
+		 * that cannot be cached by the query cache and was being run on every
+		 * request that touched a lead, including inside order creation, to
+		 * re-establish a fact that only changes when the plugin is installed.
+		 *
+		 * install() writes the option only after dbDelta has returned, so the
+		 * option cannot be set while the table is missing. The reverse — someone
+		 * dropping the table by hand and leaving the option — is recoverable:
+		 * the queries fail, are caught, and the admin screen says the table is
+		 * missing.
+		 */
+		self::$exists = '' !== (string) get_option( self::VERSION_OPTION, '' );
 
-		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared
-		$found = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $table ) );
-
-		$exists = ( $found === $table );
-
-		return $exists;
+		return self::$exists;
 	}
 
 	/**
@@ -175,5 +210,7 @@ final class Table {
 		$wpdb->query( "DROP TABLE IF EXISTS {$table}" );
 
 		delete_option( self::VERSION_OPTION );
+
+		self::$exists = false;
 	}
 }

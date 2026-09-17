@@ -594,10 +594,18 @@ final class Admin_Page {
 			}
 		}
 
-		// Only an open lead can still have a reminder coming, and each of these
-		// is an Action Scheduler query — asking it 25 times per page load for
-		// rows that converted last month is pure waste.
-		$next = $record->is_open() ? $this->scheduler->next_run_at( $record->id ) : null;
+		/*
+		 * The row's own reminder_due_at, not Action Scheduler.
+		 *
+		 * next_run_at() is the more accurate answer — it knows when the queue
+		 * will really pick the job up — but it is one query per lead, and a full
+		 * page of 25 open leads meant 25 extra queries to render a column most
+		 * people skim. The stored time is already in hand and is within seconds
+		 * of it in every ordinary case. The detail view, which is one lead and
+		 * where someone is actually asking the question, still consults the
+		 * scheduler.
+		 */
+		$next = $record->is_open() ? $record->reminder_due_at : null;
 
 		if ( null !== $next ) {
 			$lines[] = sprintf(
@@ -605,7 +613,7 @@ final class Admin_Page {
 				esc_attr(
 					sprintf(
 						/* translators: %s: UTC datetime. */
-						__( 'Queued to run at %s UTC. Action Scheduler only runs on site traffic, so a quiet site may run it later.', 'idta-partial' ),
+						__( 'Due at %s UTC. Action Scheduler only runs on site traffic, so a quiet site may run it later — open the lead for the queue\'s own answer.', 'idta-partial' ),
 						$next
 					)
 				),
@@ -718,7 +726,6 @@ final class Admin_Page {
 				__( 'Gender', 'idta-partial' )          => (string) $record->payload( 'gender', '' ),
 				__( 'Country of birth', 'idta-partial' ) => $this->country( $record, 'country_of_birth' ),
 				__( 'Residence', 'idta-partial' )       => $this->country( $record, 'country_of_residence' ),
-				__( 'Licence number', 'idta-partial' )  => (string) $record->payload( 'driver_license_number', '' ),
 				__( 'Licence classes', 'idta-partial' ) => $this->categories( $record ),
 				__( 'Holds a licence', 'idta-partial' ) => (string) $record->payload( 'has_license', '' ),
 			)
@@ -891,7 +898,7 @@ final class Admin_Page {
 			__( 'Orders are created unpaid and the customer is sent to the payment page. Choosing "only when paid" means someone who abandons on that page still receives a reminder.', 'idta-partial' )
 		);
 
-		$this->text_row( 'resume_url', __( 'Application URL', 'idta-partial' ), (string) $values['resume_url'], __( 'Where the reminder link points. The resume parameters are appended to it.', 'idta-partial' ) );
+		$this->sources_row( is_array( $values['sources'] ?? null ) ? $values['sources'] : Settings::DEFAULT_SOURCES );
 
 		$this->number_row( 'reminder_cooldown_days', __( 'Reminder cooldown (days)', 'idta-partial' ), (int) $values['reminder_cooldown_days'], __( 'The same address is not reminded twice inside this window, however many applications it abandons. A manual "Send now" ignores this.', 'idta-partial' ) );
 
@@ -908,6 +915,127 @@ final class Admin_Page {
 		submit_button();
 
 		echo '</form>';
+	}
+
+	/**
+	 * The front-end sources row.
+	 *
+	 * Each row pairs the `source` value a front end sends — the same value
+	 * idta-pdf stores as `_idp_order_from` — with the application URL a reminder
+	 * for that front end should link back to. Two jobs in one setting, and both
+	 * matter: the key is what the endpoint will accept as a source, and the URL
+	 * is where that customer gets sent.
+	 *
+	 * @param array<string,string> $sources Configured sources.
+	 */
+	private function sources_row( array $sources ): void {
+		printf( '<tr><th scope="row">%s</th><td>', esc_html__( 'Front ends', 'idta-partial' ) );
+
+		echo '<table class="widefat idta-partial-sources"><thead><tr>';
+
+		printf(
+			'<th style="width:28%%">%1$s</th><th>%2$s</th><th style="width:1%%"></th>',
+			esc_html__( 'Order from', 'idta-partial' ),
+			esc_html__( 'Application URL', 'idta-partial' )
+		);
+
+		echo '</tr></thead><tbody>';
+
+		// An empty row on the end, so adding one needs no JavaScript at all —
+		// the screen stays usable if the inline script below fails to run.
+		$rows = $sources;
+
+		$rows[''] = '';
+
+		$index = 0;
+
+		foreach ( $rows as $key => $url ) {
+			printf(
+				'<tr>'
+				. '<td><input type="text" name="idta_partial[sources][%1$d][key]" value="%2$s" class="regular-text" placeholder="idta"></td>'
+				. '<td><input type="url" name="idta_partial[sources][%1$d][url]" value="%3$s" class="large-text" placeholder="https://example.com/application.html"></td>'
+				. '<td><button type="button" class="button-link idta-partial-danger idta-partial-row-remove" aria-label="%4$s">&times;</button></td>'
+				. '</tr>',
+				$index,
+				esc_attr( (string) $key ),
+				esc_attr( (string) $url ),
+				esc_attr__( 'Remove this front end', 'idta-partial' )
+			);
+
+			++$index;
+		}
+
+		echo '</tbody></table>';
+
+		printf(
+			'<p><button type="button" class="button idta-partial-row-add">%s</button></p>',
+			esc_html__( 'Add front end', 'idta-partial' )
+		);
+
+		printf(
+			'<p class="description">%s</p>',
+			esc_html__(
+				'The storefront sends this key as "source" when it saves a partial application, and WooCommerce stores the same value as _idp_order_from. A reminder links back to the URL for the source the application was started on, so a customer who began on one site is never sent to another. A key with no URL still works for capture; it just cannot be linked back to.',
+				'idta-partial'
+			)
+		);
+
+		echo '</td></tr>';
+
+		$this->render_sources_script( $index );
+	}
+
+	/**
+	 * Add/remove behaviour for the sources table.
+	 *
+	 * @param int $next_index Index the next added row should use.
+	 */
+	private function render_sources_script( int $next_index ): void {
+		?>
+		<script>
+			( function () {
+				var table = document.querySelector( '.idta-partial-sources tbody' );
+				var addBtn = document.querySelector( '.idta-partial-row-add' );
+
+				if ( ! table || ! addBtn ) {
+					return;
+				}
+
+				var next = <?php echo (int) $next_index; ?>;
+
+				addBtn.addEventListener( 'click', function () {
+					var row = table.rows[ table.rows.length - 1 ].cloneNode( true );
+
+					row.querySelectorAll( 'input' ).forEach( function ( input ) {
+						input.value = '';
+						// Re-index, or the new row would overwrite the one it
+						// was cloned from when the form posts.
+						input.name = input.name.replace( /\[sources\]\[\d+\]/, '[sources][' + next + ']' );
+					} );
+
+					next++;
+					table.appendChild( row );
+				} );
+
+				table.addEventListener( 'click', function ( event ) {
+					if ( ! event.target.closest( '.idta-partial-row-remove' ) ) {
+						return;
+					}
+
+					// Never remove the last row: with none left there is nothing
+					// to clone, and the Add button would stop working.
+					if ( table.rows.length > 1 ) {
+						event.target.closest( 'tr' ).remove();
+						return;
+					}
+
+					table.rows[ 0 ].querySelectorAll( 'input' ).forEach( function ( input ) {
+						input.value = '';
+					} );
+				} );
+			} )();
+		</script>
+		<?php
 	}
 
 	/**

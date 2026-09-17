@@ -31,6 +31,14 @@ final class Repository {
 	 *
 	 * @var string[]
 	 */
+	/**
+	 * Columns the leads list renders.
+	 *
+	 * Everything except `payload`. Kept as a constant so the list query and this
+	 * reasoning stay next to each other.
+	 */
+	private const LIST_COLUMNS = 'id, lead_token, resume_token, status, source, email, first_name, last_name, phone, application_type, validity_years, product_id, currency, locale, unsubscribed, reminder_enabled, reminder_count, order_id, created_at, updated_at, reminder_due_at, reminder_sent_at, converted_at';
+
 	private const MUTABLE = array(
 		'email',
 		'first_name',
@@ -359,6 +367,81 @@ final class Repository {
 	}
 
 	/**
+	 * Remove one key from every stored payload that still carries it.
+	 *
+	 * Used once, on upgrade, to clear driver's licence numbers that earlier
+	 * versions collected before the field was dropped. Deciding not to store
+	 * something going forward does nothing about the copies already held, and
+	 * those are the ones that have been sitting there longest.
+	 *
+	 * @param string $key   Payload key to remove.
+	 * @param int    $limit Rows per batch.
+	 *
+	 * @return int Rows rewritten.
+	 */
+	public function strip_payload_key( string $key, int $limit = 500 ): int {
+		global $wpdb;
+
+		if ( ! Table::exists() || '' === $key ) {
+			return 0;
+		}
+
+		$table   = Table::name();
+		$cleaned = 0;
+
+		do {
+			// LIKE on the quoted key, so it matches the JSON field name rather
+			// than any value that happens to contain the same text.
+			$like = '%' . $wpdb->esc_like( '"' . $key . '"' ) . '%';
+
+			// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+			$rows = $wpdb->get_results(
+				$wpdb->prepare(
+					// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+					"SELECT id, payload FROM {$table} WHERE payload LIKE %s LIMIT %d",
+					$like,
+					$limit
+				),
+				ARRAY_A
+			);
+
+			if ( ! is_array( $rows ) || array() === $rows ) {
+				break;
+			}
+
+			foreach ( $rows as $row ) {
+				$payload = json_decode( (string) $row['payload'], true );
+
+				// Unreadable JSON, or the match was a false positive. Either
+				// way the key is not there to remove, and rewriting the row
+				// would only risk making it worse — but it must be blanked, or
+				// the LIKE would return it forever and this would not terminate.
+				if ( ! is_array( $payload ) || ! array_key_exists( $key, $payload ) ) {
+					$wpdb->update( $table, array( 'payload' => null ), array( 'id' => (int) $row['id'] ), array( '%s' ), array( '%d' ) );
+
+					++$cleaned;
+
+					continue;
+				}
+
+				unset( $payload[ $key ] );
+
+				$wpdb->update(
+					$table,
+					array( 'payload' => (string) wp_json_encode( $payload ) ),
+					array( 'id' => (int) $row['id'] ),
+					array( '%s' ),
+					array( '%d' )
+				);
+
+				++$cleaned;
+			}
+		} while ( count( $rows ) === $limit );
+
+		return $cleaned;
+	}
+
+	/**
 	 * Delete one lead outright.
 	 *
 	 * The manual counterpart to the retention job. Staff delete a lead when it
@@ -561,11 +644,19 @@ final class Repository {
 
 		$paged = array_merge( $values, array( $per_page, ( $page - 1 ) * $per_page ) );
 
+		/*
+		 * Named columns, not SELECT * — the one column left out is `payload`,
+		 * which is a longtext holding the whole application snapshot and which
+		 * the list does not render. Pulling it meant shipping 25 JSON blobs
+		 * across the wire, and parsing them into 25 Record objects, to display
+		 * a name and a date. The detail view uses find(), which selects
+		 * everything.
+		 */
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.PreparedSQL.InterpolatedNotPrepared
 		$rows = $wpdb->get_results(
 			$wpdb->prepare(
 				// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
-				"SELECT * FROM {$table} WHERE {$clause} ORDER BY id DESC LIMIT %d OFFSET %d",
+				"SELECT " . self::LIST_COLUMNS . " FROM {$table} WHERE {$clause} ORDER BY id DESC LIMIT %d OFFSET %d",
 				$paged
 			),
 			ARRAY_A

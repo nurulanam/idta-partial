@@ -38,6 +38,20 @@ final class Settings {
 	public const CONVERT_ON_PAYMENT = 'payment_complete';
 
 	/**
+	 * Front ends known out of the box, keyed by their `source` value.
+	 *
+	 * Mirrors idta-pdf's Order_Data::SOURCES, which keys the same two names to
+	 * their upload buckets. Same keys, different thing being addressed: there it
+	 * is where the images live, here it is where the application form lives.
+	 *
+	 * @var array<string,string>
+	 */
+	public const DEFAULT_SOURCES = array(
+		'idta' => 'https://e-idta.com/application.html',
+		'idpa' => '',
+	);
+
+	/**
 	 * Cached option values.
 	 *
 	 * @var array<string,mixed>|null
@@ -61,8 +75,16 @@ final class Settings {
 			'converted_retention_days'   => 365,
 			// Days before the same address may be reminded again.
 			'reminder_cooldown_days'     => 7,
-			// Where the application form lives, for the resume link.
-			'resume_url'                 => 'https://e-idta.com/application.html',
+			/*
+			 * Where each front end's application form lives, keyed by the value
+			 * that front end sends as `source` — the same value idta-pdf stores
+			 * as `_idp_order_from`.
+			 *
+			 * A reminder has to link back to the site the application was
+			 * started on. With one global URL, a lead taken on idpa was emailed
+			 * a link to e-idta.com, which is a dead end for that customer.
+			 */
+			'sources'                    => self::DEFAULT_SOURCES,
 			// Partial submissions accepted per hour, per IP and per address.
 			'rate_limit'                 => 20,
 		);
@@ -179,8 +201,6 @@ final class Settings {
 	public function sanitize( array $raw ): array {
 		$defaults = $this->defaults();
 
-		$resume = isset( $raw['resume_url'] ) ? esc_url_raw( trim( (string) $raw['resume_url'] ) ) : '';
-
 		return array(
 			'enabled'                  => ! empty( $raw['enabled'] ),
 			'reminder_delay'           => $this->clamp( $raw['reminder_delay'] ?? null, 1, 1440, (int) $defaults['reminder_delay'] ),
@@ -190,9 +210,104 @@ final class Settings {
 			'retention_days'           => $this->clamp( $raw['retention_days'] ?? null, 1, 3650, (int) $defaults['retention_days'] ),
 			'converted_retention_days' => $this->clamp( $raw['converted_retention_days'] ?? null, 1, 3650, (int) $defaults['converted_retention_days'] ),
 			'reminder_cooldown_days'   => $this->clamp( $raw['reminder_cooldown_days'] ?? null, 0, 365, (int) $defaults['reminder_cooldown_days'] ),
-			'resume_url'               => '' !== $resume ? $resume : (string) $defaults['resume_url'],
+			'sources'                  => $this->sanitize_sources( (array) ( $raw['sources'] ?? array() ) ),
 			'rate_limit'               => $this->clamp( $raw['rate_limit'] ?? null, 1, 1000, (int) $defaults['rate_limit'] ),
 		);
+	}
+
+	/**
+	 * Every configured front end, keyed by source.
+	 *
+	 * @return array<string,string>
+	 */
+	public function sources(): array {
+		$sources = $this->get( 'sources', self::DEFAULT_SOURCES );
+
+		if ( ! is_array( $sources ) || array() === $sources ) {
+			$sources = self::DEFAULT_SOURCES;
+		}
+
+		/**
+		 * Filters the front ends partial applications may arrive from.
+		 *
+		 * Keyed by the `source` value the front end sends, each an application
+		 * URL the reminder link is built on. Applied on top of whatever is
+		 * configured on the settings screen.
+		 *
+		 * @param array<string,string> $sources Application URLs keyed by source.
+		 */
+		return (array) apply_filters( 'idta_partial_sources', $sources );
+	}
+
+	/**
+	 * The source keys a submission may declare.
+	 *
+	 * @return string[]
+	 */
+	public function source_keys(): array {
+		return array_keys( $this->sources() );
+	}
+
+	/**
+	 * The application URL a lead from this source should be sent back to.
+	 *
+	 * Falls back to the first source that has a URL rather than to nothing: a
+	 * reminder with no link is worse than one pointing at the main site, and a
+	 * source added without a URL is a configuration slip, not a reason to send a
+	 * dead email.
+	 *
+	 * @param string $source Source key.
+	 *
+	 * @return string
+	 */
+	public function source_url( string $source ): string {
+		$sources = $this->sources();
+		$url     = trim( (string) ( $sources[ $source ] ?? '' ) );
+
+		if ( '' !== $url ) {
+			return $url;
+		}
+
+		foreach ( $sources as $candidate ) {
+			$candidate = trim( (string) $candidate );
+
+			if ( '' !== $candidate ) {
+				return $candidate;
+			}
+		}
+
+		return '';
+	}
+
+	/**
+	 * Clean the source rows the settings screen submits.
+	 *
+	 * @param array<int|string,mixed> $rows Submitted rows.
+	 *
+	 * @return array<string,string>
+	 */
+	private function sanitize_sources( array $rows ): array {
+		$clean = array();
+
+		foreach ( $rows as $row ) {
+			if ( ! is_array( $row ) ) {
+				continue;
+			}
+
+			$key = sanitize_key( (string) ( $row['key'] ?? '' ) );
+			$url = esc_url_raw( trim( (string) ( $row['url'] ?? '' ) ) );
+
+			// A key with no URL is kept: it still declares a source the endpoint
+			// will accept, which is the half of this that matters for capture.
+			// A URL with no key is meaningless and goes.
+			if ( '' === $key ) {
+				continue;
+			}
+
+			$clean[ $key ] = $url;
+		}
+
+		return array() !== $clean ? $clean : self::DEFAULT_SOURCES;
 	}
 
 	/**

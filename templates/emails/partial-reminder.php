@@ -36,14 +36,21 @@ do_action( 'woocommerce_email_header', $email_heading, $email );
 </p>
 
 <p>
-	<?php esc_html_e( 'You started an International Driving Permit application with us but did not finish it. Your place is still open — pick up where you left off below.', 'idta-partial' ); ?>
+	<?php esc_html_e( 'Your International Driving Permit is almost ready — you stopped just before the last step.', 'idta-partial' ); ?>
+</p>
+
+<p>
+	<?php esc_html_e( 'The good news: everything you typed is still saved. One click below brings it all back, filled in and waiting, so finishing takes about a minute — and your permit is issued digitally as soon as your application is approved.', 'idta-partial' ); ?>
+</p>
+
+<p>
+	<strong><?php esc_html_e( 'Don\'t let an unfinished form hold up your trip.', 'idta-partial' ); ?></strong>
 </p>
 
 <?php if ( '' !== $resume_url ) : ?>
 	<table border="0" cellpadding="0" cellspacing="0" role="presentation" style="margin: 24px 0;">
 		<tr>
-			<?php // The storefront's olive, matching --olive in assets/css/style.css. ?>
-			<td style="border-radius: 4px; background: #6b6e0e;">
+			<td style="border-radius: 4px; background: #1434cb;">
 				<?php
 				printf(
 					'<a href="%1$s" style="%2$s">%3$s</a>',

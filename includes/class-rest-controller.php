@@ -60,7 +60,13 @@ final class REST_Controller {
 		'phone_national'         => 'text',
 		'country_of_birth'       => 'country',
 		'country_of_residence'   => 'country',
-		'driver_license_number'  => 'text',
+		/*
+		 * The driver's licence number is deliberately absent, alongside the four
+		 * images. It is a government identifier, it is of no use to a reminder
+		 * email, and an unconverted lead is exactly the wrong place to hold one:
+		 * unpaid, unverified, and kept for weeks. An older frontend that still
+		 * sends it is not an error — the allowlist simply drops it on the floor.
+		 */
 		'license_categories'     => 'categories',
 
 		// Step 3 — the plan.
@@ -257,7 +263,10 @@ final class REST_Controller {
 				'product_id'       => max( 0, (int) ( $body['product_id'] ?? 0 ) ),
 				'currency'         => $this->currency( $body['currency'] ?? '' ),
 				'locale'           => $this->text( $body['locale'] ?? '', 10 ),
-				'source'           => $this->enum( $body['source'] ?? 'idta', array( 'idta', 'idpa' ), 'idta' ),
+				// Validated against the configured front ends rather than a
+				// hardcoded pair, so adding a source is a settings change and
+				// not a code change.
+				'source'           => $this->enum( $body['source'] ?? '', $this->settings->source_keys(), 'idta' ),
 				'payload'          => array() === $payload ? '' : (string) wp_json_encode( $payload ),
 				'ip_hash'          => Request_Context::ip_hash(),
 				'reminder_due_at'  => Repository::now( $this->settings->reminder_delay() ),

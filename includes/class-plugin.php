@@ -174,7 +174,54 @@ final class Plugin {
 			return;
 		}
 
+		/*
+		 * Earlier versions stored the driver's licence number in the payload.
+		 * The field has since been dropped from both the form and the endpoint,
+		 * but that only stops new ones arriving — the rows already holding one
+		 * have to be cleared here, or the decision not to keep them is only true
+		 * of leads captured from today.
+		 */
+		$this->migrate_resume_url();
+
+		$stripped = $this->repository->strip_payload_key( 'driver_license_number' );
+
+		if ( $stripped > 0 && defined( 'WP_DEBUG' ) && WP_DEBUG ) {
+			// phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log
+			error_log( sprintf( '[idta-partial] Removed the stored licence number from %d lead(s).', $stripped ) );
+		}
+
 		update_option( self::VERSION_OPTION, VERSION );
+	}
+
+	/**
+	 * Fold the old single application URL into the per-source list.
+	 *
+	 * Before 1.2.0 there was one `resume_url` for the whole store, which meant a
+	 * lead taken on idpa was emailed a link to e-idta.com. The setting is now
+	 * per source, and a site that had customised the old one must keep that
+	 * value rather than silently reverting to the packaged default.
+	 */
+	private function migrate_resume_url(): void {
+		$stored = get_option( Settings::OPTION_KEY );
+
+		if ( ! is_array( $stored ) || ! isset( $stored['resume_url'] ) ) {
+			return;
+		}
+
+		$legacy = trim( (string) $stored['resume_url'] );
+
+		unset( $stored['resume_url'] );
+
+		if ( '' !== $legacy && empty( $stored['sources'] ) ) {
+			// Onto 'idta', which is the only source that existed while the
+			// single setting did.
+			$stored['sources'] = array_merge(
+				Settings::DEFAULT_SOURCES,
+				array( 'idta' => $legacy )
+			);
+		}
+
+		update_option( Settings::OPTION_KEY, $stored );
 	}
 
 	/**
