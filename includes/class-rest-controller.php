@@ -46,21 +46,37 @@ final class REST_Controller {
 	 * @var array<string,string>
 	 */
 	private const PAYLOAD_FIELDS = array(
-		'gender'                 => 'text',
-		'date_of_birth'          => 'text',
-		'country_of_birth'       => 'country',
-		'country_of_residence'   => 'country',
+		// Step 1.
+		'has_license'            => 'text',
+
+		// Step 2.
 		'license_issued_country' => 'country',
 		'destination_country'    => 'country',
+
+		// Step 3 — the applicant.
+		'gender'                 => 'text',
+		'date_of_birth'          => 'text',
+		'dial_code'              => 'text',
+		'phone_national'         => 'text',
+		'country_of_birth'       => 'country',
+		'country_of_residence'   => 'country',
 		'driver_license_number'  => 'text',
-		'license_categories'     => 'list',
+		'license_categories'     => 'categories',
+
+		// Step 3 — the plan.
 		'package'                => 'text',
 		'validity_label'         => 'text',
 		'plan_price'             => 'text',
 		'cart_items'             => 'cart',
+		'summary_package'        => 'text',
+		'summary_validity'       => 'text',
+		'summary_route'          => 'text',
 		'summary_total'          => 'text',
+
+		// Provenance.
 		'step_reached'           => 'int',
 		'referrer'               => 'url',
+		'landing_path'           => 'path',
 		'utm'                    => 'utm',
 	);
 
@@ -345,6 +361,52 @@ final class REST_Controller {
 						)
 					)
 				);
+
+			case 'categories':
+				if ( ! is_array( $value ) ) {
+					return null;
+				}
+
+				$categories = array();
+
+				foreach ( array_slice( $value, 0, 20 ) as $item ) {
+					// Accepts both shapes: the {value,label} pairs the form now
+					// sends, and the bare strings it sent before, so leads
+					// already in the table keep rendering.
+					if ( is_array( $item ) ) {
+						$code = $this->text( $item['value'] ?? '', 20 );
+
+						if ( '' === $code ) {
+							continue;
+						}
+
+						$categories[] = array(
+							'value' => $code,
+							'label' => $this->text( $item['label'] ?? '', 80 ),
+						);
+
+						continue;
+					}
+
+					$code = $this->text( $item, 20 );
+
+					if ( '' !== $code ) {
+						$categories[] = array(
+							'value' => $code,
+							'label' => '',
+						);
+					}
+				}
+
+				return $categories;
+
+			case 'path':
+				// A path off our own site, so no host and no query string: the
+				// query is where campaign junk and stray identifiers live, and
+				// utm carries the parts worth keeping.
+				$path = $this->text( $value, 190 );
+
+				return preg_match( '#^/[A-Za-z0-9._~/-]*$#', $path ) ? $path : null;
 
 			case 'cart':
 				if ( ! is_array( $value ) ) {

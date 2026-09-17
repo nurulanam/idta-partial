@@ -293,6 +293,96 @@ final class Repository {
 	}
 
 	/**
+	 * Turn automatic reminders on or off for one lead.
+	 *
+	 * Staff-facing, and deliberately independent of `unsubscribed`: see the note
+	 * on Table. Switching reminders back on never un-does a customer's own
+	 * opt-out, because that is a different column and is checked separately.
+	 *
+	 * @param int  $id      Row ID.
+	 * @param bool $enabled Whether the scheduler may send.
+	 *
+	 * @return bool
+	 */
+	public function set_reminder_enabled( int $id, bool $enabled ): bool {
+		return $this->update( $id, array( 'reminder_enabled' => $enabled ? 1 : 0 ) );
+	}
+
+	/**
+	 * Record that a reminder went out, however it was triggered.
+	 *
+	 * Separate from mark_reminded(): that one closes an open lead after the
+	 * scheduled attempt and refuses to touch anything else. This one also serves
+	 * a manual send, which staff may fire at a lead that is already `reminded`,
+	 * so it carries no status guard and counts every send instead.
+	 *
+	 * @param int  $id   Row ID.
+	 * @param bool $sent Whether the mailer accepted it.
+	 *
+	 * @return bool
+	 */
+	public function record_send( int $id, bool $sent ): bool {
+		global $wpdb;
+
+		if ( ! Table::exists() || $id <= 0 ) {
+			return false;
+		}
+
+		$table = Table::name();
+		$now   = self::now();
+
+		if ( ! $sent ) {
+			return $this->update( $id, array( 'status' => Record::STATUS_REMINDED ) );
+		}
+
+		// reminder_count is incremented in SQL rather than read-then-written, so
+		// two sends racing cannot both write the same total.
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+		$affected = $wpdb->query(
+			$wpdb->prepare(
+				// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+				"UPDATE {$table}
+				    SET status = IF(status = %s, status, %s),
+				        reminder_sent_at = %s,
+				        reminder_count = reminder_count + 1,
+				        updated_at = %s
+				  WHERE id = %d",
+				Record::STATUS_CONVERTED,
+				Record::STATUS_REMINDED,
+				$now,
+				$now,
+				$id
+			)
+		);
+
+		return is_numeric( $affected ) && (int) $affected > 0;
+	}
+
+	/**
+	 * Delete one lead outright.
+	 *
+	 * The manual counterpart to the retention job. Staff delete a lead when it
+	 * is a test row, a duplicate, or a customer who asked to be forgotten — and
+	 * in the last case a soft delete would not actually answer the request, so
+	 * this really does remove the row.
+	 *
+	 * @param int $id Row ID.
+	 *
+	 * @return bool
+	 */
+	public function delete( int $id ): bool {
+		global $wpdb;
+
+		if ( ! Table::exists() || $id <= 0 ) {
+			return false;
+		}
+
+		$deleted = $wpdb->delete( Table::name(), array( 'id' => $id ), array( '%d' ) );
+
+		return is_numeric( $deleted ) && (int) $deleted > 0;
+	}
+
+	/**
 	 * Suppress every lead belonging to an address.
 	 *
 	 * @param string $email Address.

@@ -19,7 +19,7 @@ final class Table {
 	/**
 	 * Schema version. Bump when the CREATE TABLE below changes.
 	 */
-	public const DB_VERSION = '1.0.0';
+	public const DB_VERSION = '1.1.0';
 
 	/**
 	 * Option recording the installed schema version.
@@ -30,6 +30,21 @@ final class Table {
 	 * Unqualified table name.
 	 */
 	private const NAME = 'idta_partial_applications';
+
+	/*
+	 * Two separate switches govern whether a lead is reminded, and they are not
+	 * interchangeable:
+	 *
+	 *   unsubscribed     the customer said no. Set by the unsubscribe link, and
+	 *                    honoured everywhere, including a manual send by staff.
+	 *   reminder_enabled the shop said no. Set by staff on the leads screen, for
+	 *                    a lead they do not want chased. It stops the scheduled
+	 *                    reminder, but a human clicking "Send now" overrides it,
+	 *                    because that human is making the decision afresh.
+	 *
+	 * Collapsing them into one column would mean staff re-enabling reminders for
+	 * someone who had opted out, which is the one mistake this must not allow.
+	 */
 
 	/**
 	 * Fully qualified table name.
@@ -99,6 +114,8 @@ final class Table {
 			payload longtext NULL,
 			ip_hash char(64) NOT NULL DEFAULT '',
 			unsubscribed tinyint(1) NOT NULL DEFAULT 0,
+			reminder_enabled tinyint(1) NOT NULL DEFAULT 1,
+			reminder_count int(10) unsigned NOT NULL DEFAULT 0,
 			order_id bigint(20) unsigned NOT NULL DEFAULT 0,
 			created_at datetime NOT NULL,
 			updated_at datetime NOT NULL,

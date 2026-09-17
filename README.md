@@ -103,11 +103,63 @@ Processing the reminder for partial application #413.
 Addresses are masked and no other personal data is written. Action Scheduler logs
 outlive the retention job that cleans the leads themselves.
 
+## The leads screen
+
+**IDTA Partials** in the admin sidebar. Each row carries status pills, the
+customer, a truncated lead token with a copy button, the plan, and when the
+reminder went or next runs. Click the ID or name for the full record.
+
+Row actions, all nonce-protected and `manage_woocommerce` only:
+
+| Action | Effect |
+|---|---|
+| **Send now** | Sends immediately, ignoring the cooldown, the staff toggle and "already reminded" — those exist to stop the *automatic* system over-sending, and a human clicking this has made that call. Counts toward `reminder_count`. |
+| **Turn reminders off / on** | Staff switch, per lead. A queued reminder still runs and logs that it sent nothing, so the decision is visible in the Action Scheduler log. |
+| **Delete** | Removes the row and unschedules its reminder. Irreversible — it is the honest answer to "forget me", which a soft delete would not be. |
+
+### Two switches, deliberately not one
+
+| Column | Set by | Overridable by staff |
+|---|---|---|
+| `unsubscribed` | the customer, via the email link | **never** |
+| `reminder_enabled` | staff, on this screen | yes |
+
+Collapsing them would let staff re-enable reminders for someone who had opted
+out. **Send now** is blocked by `unsubscribed` and by nothing else.
+
+### Next-run time
+
+Read from Action Scheduler, not from the row's `reminder_due_at`. The two can
+legitimately disagree: the column says when the reminder was *meant* to go, the
+queue knows when it will actually be picked up — and Action Scheduler only runs
+on site traffic, so on a quiet site that is later. Staff asking "when will this
+send?" want the second answer.
+
+---
+
 ## What is never stored
 
 Portrait, licence front and back, signature. Not sent by the frontend, not
 accepted by the endpoint, not in the schema. A resumed application therefore
 starts with the uploads empty, and the form says so.
+
+## What is captured
+
+Everything steps 1–3 collect, except images:
+
+* **Step 1** — whether they hold a licence (read from `sessionStorage`, which is
+  the only place that answer lives).
+* **Step 2** — licence-issuing country, destination country.
+* **Step 3** — name, email, phone (dial code and national part kept separately),
+  date of birth, gender, country of birth, country of residence, licence number,
+  licence classes as code **and** label, the chosen package, validity, price,
+  add-ons and the quoted total.
+* **Provenance** — landing path, referrer and campaign parameters.
+
+Step 4 fields (billing and shipping address) are **not** captured, because the
+capture fires before step 4 exists. The referrer is reduced to host and path —
+someone else's query string can carry their own customers' identifiers — and the
+landing path is accepted only if it is a path on this site.
 
 ## Endpoint
 

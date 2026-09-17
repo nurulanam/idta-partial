@@ -139,7 +139,7 @@ final class Plugin {
 		( new Conversion_Listener( $this->settings, $this->repository, $this->scheduler ) )->register();
 		( new Cleanup( $this->settings, $this->repository, $this->log ) )->register();
 		( new Unsubscribe( $this->repository ) )->register();
-		( new Admin_Page( $this->settings, $this->repository ) )->register();
+		( new Admin_Page( $this->settings, $this->repository, $this->scheduler, $this->resume ) )->register();
 
 		add_filter( 'woocommerce_email_classes', array( $this, 'register_email' ) );
 	}

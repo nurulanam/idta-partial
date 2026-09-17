@@ -35,7 +35,7 @@ final class Reminder_Scheduler {
 	/**
 	 * How many numbered checks the job reports.
 	 */
-	private const STEPS = 8;
+	private const STEPS = 9;
 
 	/**
 	 * Settings.
@@ -254,7 +254,15 @@ final class Reminder_Scheduler {
 
 		$this->log->step( __( 'Email address is valid.', 'idta-partial' ) );
 
-		// 4. The customer has not opted out.
+		// 4. Staff have not switched reminders off for this lead.
+		if ( ! $record->reminder_enabled ) {
+			$this->log->step( __( 'Reminders are switched off for this lead on the leads screen.', 'idta-partial' ) );
+			$this->log->finish( __( 'Nothing sent; the lead stays open in case it is switched back on.', 'idta-partial' ) );
+
+			return;
+		}
+
+		// 5. The customer has not opted out.
 		if ( $record->unsubscribed || Unsubscribe::is_suppressed( $record->email ) ) {
 			$this->log->step( __( 'This address has opted out of reminders.', 'idta-partial' ) );
 			$this->repository->mark_reminded( $record->id, false );
@@ -265,7 +273,7 @@ final class Reminder_Scheduler {
 
 		$this->log->step( __( 'Address is not on the suppression list.', 'idta-partial' ) );
 
-		// 5. It has not been nudged recently from another attempt.
+		// 6. It has not been nudged recently from another attempt.
 		$cooldown = (int) $this->settings->get( 'reminder_cooldown_days', 7 );
 
 		if ( $this->repository->reminded_recently( $record->email, $cooldown, $record->id ) ) {
@@ -285,7 +293,7 @@ final class Reminder_Scheduler {
 
 		$this->log->step( __( 'No reminder has gone to this address recently.', 'idta-partial' ) );
 
-		// 6. WooCommerce itself has no matching order.
+		// 7. WooCommerce itself has no matching order.
 		/*
 		 * In payment_complete mode an unpaid order is not a conversion, so only
 		 * the paid statuses may suppress the reminder here — otherwise this
@@ -314,7 +322,7 @@ final class Reminder_Scheduler {
 
 		$this->log->step( __( 'No WooCommerce order exists for this address; the application really was abandoned.', 'idta-partial' ) );
 
-		// 7. Hand it to WooCommerce's mailer.
+		// 8. Hand it to WooCommerce's mailer.
 		$email = $this->email();
 
 		if ( null === $email ) {
@@ -336,8 +344,11 @@ final class Reminder_Scheduler {
 				: __( 'The mailer refused the message — the email may be disabled in WooCommerce → Settings → Emails, or sending failed.', 'idta-partial' )
 		);
 
-		// 8. Close the lead either way.
-		$this->repository->mark_reminded( $record->id, $sent );
+		// 9. Close the lead either way, and count the send.
+		// record_send rather than mark_reminded: the count has to be kept by
+		// both paths or a lead reminded once automatically and once by hand
+		// would read as having been emailed once.
+		$this->repository->record_send( $record->id, $sent );
 
 		$this->log->step(
 			$sent
@@ -349,6 +360,94 @@ final class Reminder_Scheduler {
 			$sent
 				? __( 'Reminder sent.', 'idta-partial' )
 				: __( 'Reminder could not be sent.', 'idta-partial' )
+		);
+	}
+
+	/**
+	 * When this lead's reminder is actually due to run.
+	 *
+	 * Read from Action Scheduler rather than from the row's own
+	 * reminder_due_at, because the two can legitimately disagree: the column
+	 * records when the reminder was *meant* to go, while the queue knows when it
+	 * will really be picked up — which on a quiet site, where nothing runs until
+	 * a visitor arrives, can be considerably later. Staff asking "when will this
+	 * send?" want the second answer.
+	 *
+	 * @param int $partial_id Lead ID.
+	 *
+	 * @return string|null UTC datetime, or null when nothing is queued.
+	 */
+	public function next_run_at( int $partial_id ): ?string {
+		if ( ! function_exists( 'as_next_scheduled_action' ) ) {
+			$timestamp = wp_next_scheduled( self::HOOK, array( $partial_id ) );
+
+			return $timestamp ? gmdate( 'Y-m-d H:i:s', (int) $timestamp ) : null;
+		}
+
+		$next = as_next_scheduled_action( self::HOOK, array( 'partial_id' => $partial_id ), self::GROUP );
+
+		// true means "queued, run it as soon as possible" — there is no time to
+		// show, but "pending" is still the honest answer.
+		if ( true === $next ) {
+			return Repository::now();
+		}
+
+		return is_numeric( $next ) ? gmdate( 'Y-m-d H:i:s', (int) $next ) : null;
+	}
+
+	/**
+	 * Send a lead's reminder immediately, at a human's request.
+	 *
+	 * Deliberately bypasses the cooldown, the staff toggle and the "already
+	 * reminded" guard: every one of those exists to stop the *automatic* system
+	 * over-sending, and someone clicking Send now has already made that
+	 * judgement themselves.
+	 *
+	 * The customer's own opt-out is the exception and is still enforced. No
+	 * amount of staff intent makes it acceptable to email someone who asked not
+	 * to be, and a button that could do it would eventually be clicked.
+	 *
+	 * @param Record $record Lead.
+	 *
+	 * @return array{sent:bool,reason:string}
+	 */
+	public function send_now( Record $record ): array {
+		if ( '' === $record->email || ! is_email( $record->email ) ) {
+			return array(
+				'sent'   => false,
+				'reason' => __( 'That lead has no valid email address.', 'idta-partial' ),
+			);
+		}
+
+		if ( $record->unsubscribed || Unsubscribe::is_suppressed( $record->email ) ) {
+			return array(
+				'sent'   => false,
+				'reason' => __( 'That customer has unsubscribed from reminders, so nothing was sent.', 'idta-partial' ),
+			);
+		}
+
+		$email = $this->email();
+
+		if ( null === $email ) {
+			return array(
+				'sent'   => false,
+				'reason' => __( 'The reminder email is not registered with WooCommerce. Check WooCommerce → Settings → Emails.', 'idta-partial' ),
+			);
+		}
+
+		$sent = $email->trigger( $record );
+
+		$this->repository->record_send( $record->id, $sent );
+
+		return array(
+			'sent'   => $sent,
+			'reason' => $sent
+				? sprintf(
+					/* translators: %s: email address. */
+					__( 'Reminder sent to %s.', 'idta-partial' ),
+					$record->email
+				)
+				: __( 'WooCommerce refused to send the message. The email may be disabled under WooCommerce → Settings → Emails.', 'idta-partial' ),
 		);
 	}
 

@@ -36,6 +36,8 @@ final class Record {
 	public string $currency        = '';
 	public string $locale          = '';
 	public bool $unsubscribed      = false;
+	public bool $reminder_enabled  = true;
+	public int $reminder_count     = 0;
 	public int $order_id           = 0;
 	public string $created_at      = '';
 	public string $updated_at      = '';
@@ -75,6 +77,10 @@ final class Record {
 		$record->currency         = (string) ( $row['currency'] ?? '' );
 		$record->locale           = (string) ( $row['locale'] ?? '' );
 		$record->unsubscribed     = ! empty( $row['unsubscribed'] );
+		// Absent on a row read before the 1.1.0 columns existed, and a lead with
+		// no opinion recorded should still be reminded.
+		$record->reminder_enabled = ! isset( $row['reminder_enabled'] ) || ! empty( $row['reminder_enabled'] );
+		$record->reminder_count   = (int) ( $row['reminder_count'] ?? 0 );
 		$record->order_id         = (int) ( $row['order_id'] ?? 0 );
 		$record->created_at       = (string) ( $row['created_at'] ?? '' );
 		$record->updated_at       = (string) ( $row['updated_at'] ?? '' );
@@ -134,6 +140,27 @@ final class Record {
 	 */
 	public function is_open(): bool {
 		return self::STATUS_NEW === $this->status;
+	}
+
+	/**
+	 * Whether an automatic reminder may go to this lead.
+	 *
+	 * Staff can switch reminders off for a lead they do not want chased; the
+	 * customer's own opt-out is checked separately and outranks everything.
+	 *
+	 * @return bool
+	 */
+	public function may_remind(): bool {
+		return $this->reminder_enabled && ! $this->unsubscribed;
+	}
+
+	/**
+	 * Whether this lead has ever been emailed.
+	 *
+	 * @return bool
+	 */
+	public function was_reminded(): bool {
+		return null !== $this->reminder_sent_at;
 	}
 
 	/**
