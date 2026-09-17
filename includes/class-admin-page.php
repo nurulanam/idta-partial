@@ -463,7 +463,8 @@ final class Admin_Page {
 			esc_html( $this->ago( $record->created_at ) )
 		);
 
-		printf( '<td>%s</td>', $this->status_pill( $record ) ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Built and escaped in status_pill().
+		// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Both built and escaped in their own methods.
+		printf( '<td>%1$s%2$s</td>', $this->status_pill( $record ), $this->source_pill( $record ) );
 
 		printf(
 			'<td><a href="%1$s"><strong>%2$s</strong></a><div class="idta-partial-sub">%3$s</div>%4$s</td>',
@@ -527,6 +528,47 @@ final class Admin_Page {
 			esc_attr( $record->lead_token ),
 			esc_html( substr( $record->lead_token, 0, 8 ) . '…' ),
 			esc_attr__( 'Copy lead token', 'idta-partial' )
+		);
+	}
+
+	/**
+	 * The front-end pill: which site this application was started on.
+	 *
+	 * Outlined rather than filled, so it reads as a label and not as another
+	 * status — the two sit side by side and a second solid pill would compete
+	 * with the one that actually says what is happening to the lead.
+	 *
+	 * @param Record $record Lead.
+	 *
+	 * @return string
+	 */
+	private function source_pill( Record $record ): string {
+		$source = trim( $record->source );
+
+		if ( '' === $source ) {
+			return '';
+		}
+
+		$configured = $this->settings->sources();
+		$known      = array_key_exists( $source, $configured );
+
+		return sprintf(
+			'<span class="idta-pill idta-pill--source%1$s" title="%2$s">%3$s</span>',
+			$known ? '' : ' idta-pill--source-unknown',
+			esc_attr(
+				$known
+					? sprintf(
+						/* translators: %s: source key. */
+						__( 'Started on the "%s" front end.', 'idta-partial' ),
+						$source
+					)
+					: sprintf(
+						/* translators: %s: source key. */
+						__( '"%s" is not in the Front ends list, so reminders for it fall back to the first configured site.', 'idta-partial' ),
+						$source
+					)
+			),
+			esc_html( $source )
 		);
 	}
 
@@ -708,7 +750,7 @@ final class Admin_Page {
 					$record->id
 				)
 			),
-			$this->status_pill( $record ) // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Escaped in status_pill().
+			$this->status_pill( $record ) . $this->source_pill( $record ) // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Escaped in the pill builders.
 		);
 
 		// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Escaped in row_actions().
@@ -759,7 +801,6 @@ final class Admin_Page {
 				__( 'Times sent', 'idta-partial' )     => (string) $record->reminder_count,
 				__( 'Converted (UTC)', 'idta-partial' ) => (string) $record->converted_at,
 				__( 'Order', 'idta-partial' )          => $record->order_id > 0 ? '#' . $record->order_id : '',
-				__( 'Source', 'idta-partial' )         => $record->source,
 				__( 'Locale', 'idta-partial' )         => $record->locale,
 				__( 'Landing page', 'idta-partial' )   => (string) $record->payload( 'landing_path', '' ),
 				__( 'Referrer', 'idta-partial' )       => (string) $record->payload( 'referrer', '' ),
@@ -1412,6 +1453,26 @@ final class Admin_Page {
 			.idta-partial .idta-pill--expired   { background: #eeeeee; color: #555555; }
 			.idta-partial .idta-pill--off       { background: #fde8e8; color: #8c1c1c; }
 			.idta-partial .idta-pill--muted     { background: #ededed; color: #4a4a4a; }
+
+			/* Outlined, not filled: this labels where the lead came from, and a
+			   second solid pill would compete with the status beside it. */
+			.idta-partial .idta-pill--source {
+				background: transparent;
+				color: #50575e;
+				border: 1px solid #c3c4c7;
+				text-transform: none;
+				letter-spacing: 0;
+				font-family: Menlo, Consolas, monospace;
+				font-size: 10px;
+			}
+
+			/* A source that is not in the Front ends list — its reminders fall
+			   back to another site's URL, which is worth noticing. */
+			.idta-partial .idta-pill--source-unknown {
+				border-color: #dba617;
+				color: #8a5300;
+				border-style: dashed;
+			}
 
 			.idta-partial-table td { vertical-align: top; }
 			.idta-partial .idta-partial-sub,
