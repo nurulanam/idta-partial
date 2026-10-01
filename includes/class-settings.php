@@ -68,7 +68,10 @@ final class Settings {
 			'enabled'                    => true,
 			// Minutes between the end of step 3 and the reminder.
 			'reminder_delay'             => 12,
-			'convert_on'                 => self::CONVERT_ON_ORDER,
+			// An order is created unpaid and the customer is sent to the
+			// payment page — counting that as a conversion marks someone who
+			// never actually paid as converted, and stops their reminder.
+			'convert_on'                 => self::CONVERT_ON_PAYMENT,
 			// Days an unconverted lead is kept before deletion.
 			'retention_days'             => 90,
 			// Days a converted lead keeps its personal data before anonymisation.
