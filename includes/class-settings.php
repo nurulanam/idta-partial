@@ -66,6 +66,14 @@ final class Settings {
 	public function defaults(): array {
 		return array(
 			'enabled'                    => true,
+			// Whether the reminder email itself is sent. Capture carries on when off.
+			'reminder_enabled'           => true,
+			// Reminder wording. {first_name} and {validity_years} are replaced.
+			'email_subject'              => __( 'Continue Your International Driving Permit Application', 'idta-partial' ),
+			'email_body'                 => __( "Hi {first_name},\n\nIt looks like you started your International Driving Permit application but didn’t complete it.\n\nIf you had any questions or something was unclear, don’t worry we’re here to help.\n\nYou can continue your application using the link below:", 'idta-partial' ),
+			'email_button_text'          => __( 'Continue Your Application', 'idta-partial' ),
+			// Shown under the button.
+			'email_footer'               => __( "Simply reply to this email if you need any help. We’ll be happy to assist you with your application.\n\nBest regards,\niAA Support Team", 'idta-partial' ),
 			// Minutes between the end of step 3 and the reminder.
 			'reminder_delay'             => 12,
 			// An order is created unpaid and the customer is sent to the
@@ -140,6 +148,15 @@ final class Settings {
 	}
 
 	/**
+	 * Whether reminder emails are switched on.
+	 *
+	 * @return bool
+	 */
+	public function reminders_enabled(): bool {
+		return (bool) $this->get( 'reminder_enabled', true );
+	}
+
+	/**
 	 * Reminder delay, in seconds.
 	 *
 	 * @return int
@@ -206,6 +223,11 @@ final class Settings {
 
 		return array(
 			'enabled'                  => ! empty( $raw['enabled'] ),
+			'reminder_enabled'         => ! empty( $raw['reminder_enabled'] ),
+			'email_subject'            => $this->text( $raw['email_subject'] ?? null, (string) $defaults['email_subject'], false ),
+			'email_body'               => $this->text( $raw['email_body'] ?? null, (string) $defaults['email_body'], true ),
+			'email_button_text'        => $this->text( $raw['email_button_text'] ?? null, (string) $defaults['email_button_text'], false ),
+			'email_footer'             => $this->text( $raw['email_footer'] ?? null, (string) $defaults['email_footer'], true ),
 			'reminder_delay'           => $this->clamp( $raw['reminder_delay'] ?? null, 1, 1440, (int) $defaults['reminder_delay'] ),
 			'convert_on'               => self::CONVERT_ON_PAYMENT === ( $raw['convert_on'] ?? '' )
 				? self::CONVERT_ON_PAYMENT
@@ -311,6 +333,25 @@ final class Settings {
 		}
 
 		return array() !== $clean ? $clean : self::DEFAULT_SOURCES;
+	}
+
+	/**
+	 * Clean a line or block of wording, falling back to the default when blank.
+	 *
+	 * @param mixed  $value     Submitted value.
+	 * @param string $fallback  Used when nothing usable was submitted.
+	 * @param bool   $multiline Whether line breaks are kept.
+	 *
+	 * @return string
+	 */
+	private function text( $value, string $fallback, bool $multiline ): string {
+		if ( ! is_string( $value ) ) {
+			return $fallback;
+		}
+
+		$value = $multiline ? sanitize_textarea_field( $value ) : sanitize_text_field( $value );
+
+		return '' === trim( $value ) ? $fallback : $value;
 	}
 
 	/**

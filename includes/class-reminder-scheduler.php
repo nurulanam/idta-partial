@@ -199,6 +199,12 @@ final class Reminder_Scheduler {
 			return;
 		}
 
+		if ( ! $this->settings->reminders_enabled() ) {
+			$this->log->finish( __( 'Reminder emails are switched off in the settings; nothing sent.', 'idta-partial' ) );
+
+			return;
+		}
+
 		// 1. The lead still exists.
 		$record = $this->repository->find( $partial_id );
 
@@ -412,6 +418,13 @@ final class Reminder_Scheduler {
 	 * @return array{sent:bool,reason:string}
 	 */
 	public function send_now( Record $record ): array {
+		if ( ! $this->settings->reminders_enabled() ) {
+			return array(
+				'sent'   => false,
+				'reason' => __( 'Reminder emails are switched off on the Settings tab, so nothing was sent.', 'idta-partial' ),
+			);
+		}
+
 		if ( '' === $record->email || ! is_email( $record->email ) ) {
 			return array(
 				'sent'   => false,

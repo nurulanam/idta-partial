@@ -42,12 +42,21 @@ final class Reminder_Email extends \WC_Email {
 	private Resume_URL $resume;
 
 	/**
+	 * Plugin settings.
+	 *
+	 * @var Settings
+	 */
+	private Settings $plugin_settings;
+
+	/**
 	 * Constructor.
 	 *
-	 * @param Resume_URL $resume Resume link builder.
+	 * @param Resume_URL $resume   Resume link builder.
+	 * @param Settings   $settings Plugin settings.
 	 */
-	public function __construct( Resume_URL $resume ) {
-		$this->resume = $resume;
+	public function __construct( Resume_URL $resume, Settings $settings ) {
+		$this->resume          = $resume;
+		$this->plugin_settings = $settings;
 
 		$this->id             = 'idta_partial_reminder';
 		$this->customer_email = true;
@@ -72,7 +81,39 @@ final class Reminder_Email extends \WC_Email {
 	 * @return string
 	 */
 	public function get_default_subject(): string {
-		return __( 'Your International Driving Permit is one step away', 'idta-partial' );
+		return (string) $this->plugin_settings->get( 'email_subject', '' );
+	}
+
+	/**
+	 * Subject, from this plugin's reminder settings.
+	 *
+	 * @return string
+	 */
+	public function get_subject() {
+		$subject = $this->format_string( (string) $this->plugin_settings->get( 'email_subject', '' ) );
+
+		return apply_filters( 'woocommerce_email_subject_' . $this->id, $subject, $this->object, $this );
+	}
+
+	/**
+	 * WooCommerce's settings fields, minus the subject.
+	 *
+	 * The subject is edited on this plugin's settings screen alongside the rest
+	 * of the wording, so a second subject box here would only be ignored.
+	 */
+	public function init_form_fields() {
+		parent::init_form_fields();
+
+		unset( $this->form_fields['subject'] );
+	}
+
+	/**
+	 * Whether the reminder is on, in both WooCommerce and this plugin's settings.
+	 *
+	 * @return bool
+	 */
+	public function is_enabled() {
+		return $this->plugin_settings->reminders_enabled() && parent::is_enabled();
 	}
 
 	/**
@@ -81,7 +122,7 @@ final class Reminder_Email extends \WC_Email {
 	 * @return string
 	 */
 	public function get_default_heading(): string {
-		return __( 'You are one step away', 'idta-partial' );
+		return __( 'Continue Your Application', 'idta-partial' );
 	}
 
 	/**
@@ -90,7 +131,7 @@ final class Reminder_Email extends \WC_Email {
 	 * @return string
 	 */
 	public function get_default_additional_content(): string {
-		return __( 'If you have already completed your application, please ignore this message.', 'idta-partial' );
+		return '';
 	}
 
 	/**
@@ -175,6 +216,9 @@ final class Reminder_Email extends \WC_Email {
 			'resume_url'         => $this->resume->for_record( $record ),
 			'unsubscribe_url'    => Unsubscribe::url_for( $record ),
 			'plan_label'         => $this->plan_label( $record ),
+			'body_text'          => $this->format_string( (string) $this->plugin_settings->get( 'email_body', '' ) ),
+			'button_text'        => (string) $this->plugin_settings->get( 'email_button_text', '' ),
+			'footer_text'        => $this->format_string( (string) $this->plugin_settings->get( 'email_footer', '' ) ),
 			'email_heading'      => $this->get_heading(),
 			'additional_content' => $this->get_additional_content(),
 			'sent_to_admin'      => false,

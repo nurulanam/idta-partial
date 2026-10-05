@@ -154,7 +154,7 @@ final class Plugin {
 	public function register_email( $emails ): array {
 		$emails = is_array( $emails ) ? $emails : array();
 
-		$emails['IDTA_Partial_Reminder'] = new Reminder_Email( $this->resume );
+		$emails['IDTA_Partial_Reminder'] = new Reminder_Email( $this->resume, $this->settings );
 
 		return $emails;
 	}

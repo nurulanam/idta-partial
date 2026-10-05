@@ -926,6 +926,8 @@ final class Admin_Page {
 
 		$this->checkbox_row( 'enabled', __( 'Capture partial applications', 'idta-partial' ), ! empty( $values['enabled'] ), __( 'When off, the REST endpoint accepts requests and stores nothing, and no reminders are sent.', 'idta-partial' ) );
 
+		$this->checkbox_row( 'reminder_enabled', __( 'Send reminder emails', 'idta-partial' ), ! empty( $values['reminder_enabled'] ), __( 'When off, partial applications are still captured but no reminder is sent, automatic or manual.', 'idta-partial' ) );
+
 		$this->number_row( 'reminder_delay', __( 'Reminder delay (minutes)', 'idta-partial' ), (int) $values['reminder_delay'], __( 'Measured from the moment step 3 was completed.', 'idta-partial' ) );
 
 		$this->select_row(
@@ -950,6 +952,17 @@ final class Admin_Page {
 		$this->number_row( 'rate_limit', __( 'Submissions per hour', 'idta-partial' ), (int) $values['rate_limit'], __( 'Per IP address and per email address.', 'idta-partial' ) );
 
 		$this->render_api_key_row();
+
+		echo '</table>';
+
+		echo '<h2>' . esc_html__( 'Reminder email', 'idta-partial' ) . '</h2>';
+		echo '<p class="description">' . esc_html__( 'Wording of the reminder. {first_name} and {validity_years} are replaced for each customer. The continue link itself is added automatically and cannot be changed here.', 'idta-partial' ) . '</p>';
+		echo '<table class="form-table" role="presentation">';
+
+		$this->plain_text_row( 'email_subject', __( 'Subject', 'idta-partial' ), (string) $values['email_subject'], '' );
+		$this->textarea_row( 'email_body', __( 'Body text', 'idta-partial' ), (string) $values['email_body'], __( 'Shown above the button.', 'idta-partial' ) );
+		$this->plain_text_row( 'email_button_text', __( 'Button text', 'idta-partial' ), (string) $values['email_button_text'], '' );
+		$this->textarea_row( 'email_footer', __( 'Text under the button', 'idta-partial' ), (string) $values['email_footer'], __( 'Sign-off and help line.', 'idta-partial' ) );
 
 		echo '</table>';
 
@@ -1389,6 +1402,42 @@ final class Admin_Page {
 			esc_html( $label ),
 			esc_attr( $key ),
 			esc_attr( $value ),
+			esc_html( $description )
+		);
+	}
+
+	/**
+	 * A single-line text row.
+	 *
+	 * @param string $key         Setting key.
+	 * @param string $label       Field label.
+	 * @param string $value       Current value.
+	 * @param string $description Help text.
+	 */
+	private function plain_text_row( string $key, string $label, string $value, string $description ): void {
+		printf(
+			'<tr><th scope="row"><label for="%2$s">%1$s</label></th><td><input type="text" id="%2$s" name="idta_partial[%2$s]" value="%3$s" class="large-text"><p class="description">%4$s</p></td></tr>',
+			esc_html( $label ),
+			esc_attr( $key ),
+			esc_attr( $value ),
+			esc_html( $description )
+		);
+	}
+
+	/**
+	 * A textarea row.
+	 *
+	 * @param string $key         Setting key.
+	 * @param string $label       Field label.
+	 * @param string $value       Current value.
+	 * @param string $description Help text.
+	 */
+	private function textarea_row( string $key, string $label, string $value, string $description ): void {
+		printf(
+			'<tr><th scope="row"><label for="%2$s">%1$s</label></th><td><textarea id="%2$s" name="idta_partial[%2$s]" rows="6" class="large-text">%3$s</textarea><p class="description">%4$s</p></td></tr>',
+			esc_html( $label ),
+			esc_attr( $key ),
+			esc_textarea( $value ),
 			esc_html( $description )
 		);
 	}
