@@ -1,13 +1,13 @@
 <?php
 /**
  * Plugin Name:       IDTA Partial Applications
- * Plugin URI:        https://am2am.com
+ * Plugin URI:        https://webclyde.com/
  * Description:       Captures an eIDTA application at the end of step 3, reminds the customer once if no order follows, and marks the lead converted when the WooCommerce order arrives.
- * Version:           1.2.1
+ * Version:           1.3.1
  * Requires at least: 6.0
  * Requires PHP:      8.0
- * Author:            am2am software
- * Author URI:        https://am2am.com
+ * Author:            Webclyde LLC
+ * Author URI:        https://webclyde.com/
  * License:           GPL-2.0-or-later
  * License URI:       https://www.gnu.org/licenses/gpl-2.0.html
  * Text Domain:       idta-partial
@@ -25,7 +25,7 @@ namespace IDTA\Partial;
 
 defined( 'ABSPATH' ) || exit;
 
-const VERSION     = '1.2.1';
+const VERSION     = '1.3.1';
 const PLUGIN_FILE = __FILE__;
 
 require_once __DIR__ . '/includes/class-autoloader.php';
