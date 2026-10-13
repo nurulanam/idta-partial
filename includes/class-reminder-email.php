@@ -108,15 +108,6 @@ final class Reminder_Email extends \WC_Email {
 	}
 
 	/**
-	 * Whether the reminder is on, in both WooCommerce and this plugin's settings.
-	 *
-	 * @return bool
-	 */
-	public function is_enabled() {
-		return $this->plugin_settings->reminders_enabled() && parent::is_enabled();
-	}
-
-	/**
 	 * Default heading.
 	 *
 	 * @return string

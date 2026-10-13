@@ -926,7 +926,7 @@ final class Admin_Page {
 
 		$this->checkbox_row( 'enabled', __( 'Capture partial applications', 'idta-partial' ), ! empty( $values['enabled'] ), __( 'When off, the REST endpoint accepts requests and stores nothing, and no reminders are sent.', 'idta-partial' ) );
 
-		$this->checkbox_row( 'reminder_enabled', __( 'Send reminder emails', 'idta-partial' ), ! empty( $values['reminder_enabled'] ), __( 'When off, partial applications are still captured but no reminder is sent, automatic or manual.', 'idta-partial' ) );
+		$this->checkbox_row( 'reminder_enabled', __( 'Send reminder emails', 'idta-partial' ), ! empty( $values['reminder_enabled'] ), __( 'When off, partial applications are still captured but no automatic reminder is sent. "Send now" on the leads screen still works.', 'idta-partial' ) );
 
 		$this->number_row( 'reminder_delay', __( 'Reminder delay (minutes)', 'idta-partial' ), (int) $values['reminder_delay'], __( 'Measured from the moment step 3 was completed.', 'idta-partial' ) );
 
