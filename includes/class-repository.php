@@ -37,7 +37,7 @@ final class Repository {
 	 * Everything except `payload`. Kept as a constant so the list query and this
 	 * reasoning stay next to each other.
 	 */
-	private const LIST_COLUMNS = 'id, lead_token, resume_token, status, source, email, first_name, last_name, phone, application_type, validity_years, product_id, currency, locale, unsubscribed, reminder_enabled, reminder_count, order_id, created_at, updated_at, reminder_due_at, reminder_sent_at, converted_at';
+	private const LIST_COLUMNS = 'id, lead_token, resume_token, status, trashed_status, source, email, first_name, last_name, phone, application_type, validity_years, product_id, currency, locale, unsubscribed, reminder_enabled, reminder_count, order_id, created_at, updated_at, reminder_due_at, reminder_sent_at, converted_at';
 
 	private const MUTABLE = array(
 		'email',
@@ -256,8 +256,66 @@ final class Repository {
 				'order_id'     => $order_id,
 				'converted_at' => self::now(),
 			),
-			'status <> %s',
-			array( Record::STATUS_CONVERTED )
+			'status NOT IN ( %s, %s )',
+			array( Record::STATUS_CONVERTED, Record::STATUS_TRASHED )
+		);
+	}
+
+	/**
+	 * Move a lead to Trash while retaining its previous status for restoration.
+	 *
+	 * @param int $id Row ID.
+	 *
+	 * @return bool Whether the lead was moved.
+	 */
+	public function trash( int $id ): bool {
+		$record = $this->find( $id );
+
+		if ( null === $record || Record::STATUS_TRASHED === $record->status ) {
+			return false;
+		}
+
+		return $this->update(
+			$id,
+			array(
+				'status'         => Record::STATUS_TRASHED,
+				'trashed_status' => $record->status,
+			),
+			'status = %s',
+			array( $record->status )
+		);
+	}
+
+	/**
+	 * Restore a lead to the status it had before being trashed.
+	 *
+	 * @param int $id Row ID.
+	 *
+	 * @return bool Whether the lead was restored.
+	 */
+	public function restore( int $id ): bool {
+		$record = $this->find( $id );
+
+		if ( null === $record || Record::STATUS_TRASHED !== $record->status ) {
+			return false;
+		}
+
+		$restore_status = in_array(
+			$record->trashed_status,
+			array( Record::STATUS_NEW, Record::STATUS_REMINDED, Record::STATUS_CONVERTED, Record::STATUS_EXPIRED ),
+			true
+		)
+			? $record->trashed_status
+			: Record::STATUS_NEW;
+
+		return $this->update(
+			$id,
+			array(
+				'status'         => $restore_status,
+				'trashed_status' => '',
+			),
+			'status = %s',
+			array( Record::STATUS_TRASHED )
 		);
 	}
 
@@ -617,9 +675,12 @@ final class Repository {
 		$where  = array( '1 = 1' );
 		$values = array();
 
-		if ( in_array( $status, array( Record::STATUS_NEW, Record::STATUS_REMINDED, Record::STATUS_CONVERTED, Record::STATUS_EXPIRED ), true ) ) {
+		if ( in_array( $status, array( Record::STATUS_NEW, Record::STATUS_REMINDED, Record::STATUS_CONVERTED, Record::STATUS_EXPIRED, Record::STATUS_TRASHED ), true ) ) {
 			$where[]  = 'status = %s';
 			$values[] = $status;
+		} else {
+			$where[]  = 'status <> %s';
+			$values[] = Record::STATUS_TRASHED;
 		}
 
 		if ( '' !== $search ) {

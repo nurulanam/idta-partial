@@ -20,11 +20,13 @@ final class Record {
 	public const STATUS_REMINDED  = 'reminded';
 	public const STATUS_CONVERTED = 'converted';
 	public const STATUS_EXPIRED   = 'expired';
+	public const STATUS_TRASHED   = 'trashed';
 
 	public int $id                 = 0;
 	public string $lead_token      = '';
 	public string $resume_token    = '';
 	public string $status          = self::STATUS_NEW;
+	public string $trashed_status  = '';
 	public string $source          = 'idta';
 	public string $email           = '';
 	public string $first_name      = '';
@@ -66,6 +68,7 @@ final class Record {
 		$record->lead_token       = (string) ( $row['lead_token'] ?? '' );
 		$record->resume_token     = (string) ( $row['resume_token'] ?? '' );
 		$record->status           = (string) ( $row['status'] ?? self::STATUS_NEW );
+		$record->trashed_status   = (string) ( $row['trashed_status'] ?? '' );
 		$record->source           = (string) ( $row['source'] ?? 'idta' );
 		$record->email            = (string) ( $row['email'] ?? '' );
 		$record->first_name       = (string) ( $row['first_name'] ?? '' );

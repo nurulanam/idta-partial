@@ -139,7 +139,7 @@ final class Admin_Page {
 	/**
 	 * Run a row action against one lead.
 	 *
-	 * One entry point for all four, because they share every precondition —
+	 * One entry point for the row actions, because they share every precondition —
 	 * capability, nonce, a lead that exists — and splitting them would mean four
 	 * copies of those checks, which is three chances to leave one out.
 	 */
@@ -165,19 +165,60 @@ final class Admin_Page {
 		}
 
 		switch ( $action ) {
+			case 'trash':
+				if ( $this->repository->trash( $record->id ) ) {
+					$this->scheduler->unschedule( $record->id );
+					$this->notice(
+						'success',
+						sprintf(
+							/* translators: %d: lead ID. */
+							__( 'Lead #%d moved to Trash.', 'idta-partial' ),
+							$record->id
+						)
+					);
+				} else {
+					$this->notice( 'error', __( 'That lead could not be moved to Trash.', 'idta-partial' ) );
+				}
+				break;
+
+			case 'restore':
+				$restore_reminder = Record::STATUS_NEW === $record->trashed_status;
+
+				if ( $this->repository->restore( $record->id ) ) {
+					if ( $restore_reminder ) {
+						$restored = $this->repository->find( $record->id );
+
+						if ( null !== $restored ) {
+							$this->scheduler->schedule( $restored );
+						}
+					}
+
+					$this->notice(
+						'success',
+						sprintf(
+							/* translators: %d: lead ID. */
+							__( 'Lead #%d restored.', 'idta-partial' ),
+							$record->id
+						)
+					);
+				} else {
+					$this->notice( 'error', __( 'That lead could not be restored.', 'idta-partial' ) );
+				}
+				break;
+
 			case 'delete':
-				// The queued reminder goes first. Deleting the row on its own
-				// would leave a job that wakes up to a missing lead — harmless,
-				// since it checks, but it would log a puzzling "lead not found"
-				// against an action nobody can explain.
+				if ( Record::STATUS_TRASHED !== $record->status ) {
+					$this->notice( 'error', __( 'Move the lead to Trash before permanently deleting it.', 'idta-partial' ) );
+					break;
+				}
+
 				$this->scheduler->unschedule( $record->id );
 				$this->repository->delete( $record->id );
-
 				$this->notice(
 					'success',
 					sprintf(
 						/* translators: %d: lead ID. */
-						__( 'Lead #%d deleted.', 'idta-partial' ),
+						__( 'Lead #%d permanently deleted.', 'idta-partial' ),
 						$record->id
 					)
 				);
@@ -218,8 +259,11 @@ final class Admin_Page {
 		// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Checked above.
 		$back = isset( $_REQUEST['back'] ) ? sanitize_key( wp_unslash( (string) $_REQUEST['back'] ) ) : '';
 
-		// A delete has nowhere to go back to.
-		$this->redirect( ( 'detail' === $back && 'delete' !== $action ) ? array( 'lead' => $record->id ) : array() );
+		if ( 'trash' === $back ) {
+			$this->redirect( array( 'status' => Record::STATUS_TRASHED ) );
+		}
+
+		$this->redirect( ( 'detail' === $back && ! in_array( $action, array( 'delete', 'trash' ), true ) ) ? array( 'lead' => $record->id ) : array() );
 	}
 
 	/**
@@ -674,19 +718,36 @@ final class Admin_Page {
 		}
 
 		return implode( '', array_map( fn( $line ) => '<div>' . $line . '</div>', $lines ) )
-			. $this->row_actions( $record );
+			. $this->row_actions( $record, Record::STATUS_TRASHED === $record->status ? 'trash' : '' );
 	}
 
 	/**
 	 * The row's action links.
 	 *
 	 * @param Record $record Lead.
-	 * @param string $back   'detail' to return to the detail view.
+	 * @param string $back   'detail' or 'trash' to return to that view.
 	 *
 	 * @return string
 	 */
 	private function row_actions( Record $record, string $back = '' ): string {
 		$links = array();
+
+		if ( Record::STATUS_TRASHED === $record->status ) {
+			$links[] = sprintf(
+				'<a href="%1$s">%2$s</a>',
+				esc_url( $this->action_url( $record, 'restore', $back ) ),
+				esc_html__( 'Restore', 'idta-partial' )
+			);
+
+			$links[] = sprintf(
+				'<a href="%1$s" class="idta-partial-danger" onclick="return confirm(%2$s)">%3$s</a>',
+				esc_url( $this->action_url( $record, 'delete', $back ) ),
+				esc_attr( wp_json_encode( __( 'Permanently delete this lead? This cannot be undone.', 'idta-partial' ) ) ),
+				esc_html__( 'Delete permanently', 'idta-partial' )
+			);
+
+			return '<div class="idta-partial-actions row-actions">' . implode( ' <span>|</span> ', $links ) . '</div>';
+		}
 
 		if ( ! $record->unsubscribed ) {
 			$links[] = sprintf(
@@ -705,17 +766,17 @@ final class Admin_Page {
 
 		$links[] = sprintf(
 			'<a href="%1$s" class="idta-partial-danger" onclick="return confirm(%2$s)">%3$s</a>',
-			esc_url( $this->action_url( $record, 'delete', $back ) ),
+			esc_url( $this->action_url( $record, 'trash', $back ) ),
 			esc_attr(
 				wp_json_encode(
 					sprintf(
 						/* translators: %d: lead ID. */
-						__( 'Delete lead #%d permanently? This cannot be undone.', 'idta-partial' ),
+						__( 'Move lead #%d to Trash?', 'idta-partial' ),
 						$record->id
 					)
 				)
 			),
-			esc_html__( 'Delete', 'idta-partial' )
+			esc_html__( 'Trash', 'idta-partial' )
 		);
 
 		return '<div class="idta-partial-actions row-actions">' . implode( ' <span>|</span> ', $links ) . '</div>';
@@ -853,7 +914,7 @@ final class Admin_Page {
 	 */
 	private function render_counts( string $current ): void {
 		$counts = $this->repository->counts();
-		$total  = array_sum( $counts );
+		$total  = array_sum( $counts ) - (int) ( $counts[ Record::STATUS_TRASHED ] ?? 0 );
 
 		$links = array();
 
@@ -867,7 +928,7 @@ final class Admin_Page {
 			(int) $total
 		);
 
-		foreach ( array( Record::STATUS_NEW, Record::STATUS_REMINDED, Record::STATUS_CONVERTED, Record::STATUS_EXPIRED ) as $status ) {
+		foreach ( array( Record::STATUS_NEW, Record::STATUS_REMINDED, Record::STATUS_CONVERTED, Record::STATUS_EXPIRED, Record::STATUS_TRASHED ) as $status ) {
 			$links[] = sprintf(
 				'<a href="%1$s"%2$s>%3$s <span class="count">(%4$d)</span></a>',
 				esc_url( add_query_arg( 'status', $status, $all_url ) ),
@@ -1157,6 +1218,7 @@ final class Admin_Page {
 			Record::STATUS_REMINDED  => __( 'Reminded', 'idta-partial' ),
 			Record::STATUS_CONVERTED => __( 'Converted', 'idta-partial' ),
 			Record::STATUS_EXPIRED   => __( 'Expired', 'idta-partial' ),
+			Record::STATUS_TRASHED   => __( 'Trash', 'idta-partial' ),
 		);
 
 		return $labels[ $status ] ?? $status;

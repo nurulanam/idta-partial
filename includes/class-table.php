@@ -19,7 +19,7 @@ final class Table {
 	/**
 	 * Schema version. Bump when the CREATE TABLE below changes.
 	 */
-	public const DB_VERSION = '1.1.0';
+	public const DB_VERSION = '1.2.0';
 
 	/**
 	 * Option recording the installed schema version.
@@ -125,6 +125,7 @@ final class Table {
 			lead_token varchar(64) NOT NULL,
 			resume_token char(32) NOT NULL,
 			status varchar(20) NOT NULL DEFAULT 'new',
+			trashed_status varchar(20) NOT NULL DEFAULT '',
 			source varchar(20) NOT NULL DEFAULT 'idta',
 			email varchar(190) NOT NULL DEFAULT '',
 			first_name varchar(100) NOT NULL DEFAULT '',
