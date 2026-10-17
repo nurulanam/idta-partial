@@ -155,6 +155,7 @@ final class Plugin {
 		$emails = is_array( $emails ) ? $emails : array();
 
 		$emails['IDTA_Partial_Reminder'] = new Reminder_Email( $this->resume, $this->settings );
+		$emails['IDTA_Partial_Unpaid_Order_Reminder'] = new Reminder_Email( $this->resume, $this->settings, true );
 
 		return $emails;
 	}

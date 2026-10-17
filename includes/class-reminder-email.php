@@ -49,22 +49,40 @@ final class Reminder_Email extends \WC_Email {
 	private Settings $plugin_settings;
 
 	/**
+	 * Whether this instance reminds about an unpaid order.
+	 *
+	 * @var bool
+	 */
+	private bool $payment_reminder;
+
+	/**
+	 * Pay-for-order URL for the current message.
+	 *
+	 * @var string
+	 */
+	private string $payment_url = '';
+
+	/**
 	 * Constructor.
 	 *
 	 * @param Resume_URL $resume   Resume link builder.
-	 * @param Settings   $settings Plugin settings.
+	 * @param Settings   $settings         Plugin settings.
+	 * @param bool       $payment_reminder Whether this is the unpaid-order email.
 	 */
-	public function __construct( Resume_URL $resume, Settings $settings ) {
+	public function __construct( Resume_URL $resume, Settings $settings, bool $payment_reminder = false ) {
 		$this->resume          = $resume;
 		$this->plugin_settings = $settings;
+		$this->payment_reminder = $payment_reminder;
 
-		$this->id             = 'idta_partial_reminder';
+		$this->id             = $payment_reminder ? 'idta_partial_unpaid_order_reminder' : 'idta_partial_reminder';
 		$this->customer_email = true;
-		$this->title          = __( 'Unfinished application reminder', 'idta-partial' );
-		$this->description    = __( 'Sent once, a few minutes after a visitor completes step 3 of the application without placing an order.', 'idta-partial' );
+		$this->title          = $payment_reminder ? __( 'Unpaid order reminder', 'idta-partial' ) : __( 'Unfinished application reminder', 'idta-partial' );
+		$this->description    = $payment_reminder
+			? __( 'Sent once, after a customer places an order but does not complete payment.', 'idta-partial' )
+			: __( 'Sent once, a few minutes after a visitor completes step 3 of the application without placing an order.', 'idta-partial' );
 
-		$this->template_html  = 'emails/partial-reminder.php';
-		$this->template_plain = 'emails/plain/partial-reminder.php';
+		$this->template_html  = $payment_reminder ? 'emails/unpaid-order-reminder.php' : 'emails/partial-reminder.php';
+		$this->template_plain = $payment_reminder ? 'emails/plain/unpaid-order-reminder.php' : 'emails/plain/partial-reminder.php';
 		$this->template_base  = plugin_dir_path( PLUGIN_FILE ) . 'templates/';
 
 		$this->placeholders = array(
@@ -81,6 +99,10 @@ final class Reminder_Email extends \WC_Email {
 	 * @return string
 	 */
 	public function get_default_subject(): string {
+		if ( $this->payment_reminder ) {
+			return __( 'Your IDP Application Has Been Approved - Complete Your Payment', 'idta-partial' );
+		}
+
 		return (string) $this->plugin_settings->get( 'email_subject', '' );
 	}
 
@@ -90,7 +112,7 @@ final class Reminder_Email extends \WC_Email {
 	 * @return string
 	 */
 	public function get_subject() {
-		$subject = $this->format_string( (string) $this->plugin_settings->get( 'email_subject', '' ) );
+		$subject = $this->format_string( $this->payment_reminder ? $this->get_default_subject() : (string) $this->plugin_settings->get( 'email_subject', '' ) );
 
 		return apply_filters( 'woocommerce_email_subject_' . $this->id, $subject, $this->object, $this );
 	}
@@ -113,6 +135,10 @@ final class Reminder_Email extends \WC_Email {
 	 * @return string
 	 */
 	public function get_default_heading(): string {
+		if ( $this->payment_reminder ) {
+			return __( 'Your IDP Application Has Been Approved', 'idta-partial' );
+		}
+
 		return __( 'Continue Your Application', 'idta-partial' );
 	}
 
@@ -128,16 +154,24 @@ final class Reminder_Email extends \WC_Email {
 	/**
 	 * Send the reminder for one lead.
 	 *
-	 * @param Record $record Lead.
+	 * @param Record $record      Lead.
+	 * @param string $payment_url Pay-for-order URL, for the unpaid-order email.
 	 *
 	 * @return bool Whether the mail was handed to the mailer.
 	 */
-	public function trigger( Record $record ): bool {
+	public function trigger( Record $record, string $payment_url = '' ): bool {
 		$this->setup_locale();
+
+		if ( $this->payment_reminder && '' === $payment_url ) {
+			$this->restore_locale();
+
+			return false;
+		}
 
 		$this->record    = $record;
 		$this->object    = $record;
 		$this->recipient = $record->email;
+		$this->payment_url = $payment_url;
 
 		$this->placeholders['{first_name}']     = $record->greeting_name();
 		$this->placeholders['{validity_years}'] = (string) $record->validity_years;
@@ -205,11 +239,20 @@ final class Reminder_Email extends \WC_Email {
 		return array(
 			'record'             => $record,
 			'resume_url'         => $this->resume->for_record( $record ),
+			'payment_url'        => $this->payment_reminder ? $this->payment_url : '',
 			'unsubscribe_url'    => Unsubscribe::url_for( $record ),
 			'plan_label'         => $this->plan_label( $record ),
-			'body_text'          => $this->format_string( (string) $this->plugin_settings->get( 'email_body', '' ) ),
-			'button_text'        => (string) $this->plugin_settings->get( 'email_button_text', '' ),
-			'footer_text'        => $this->format_string( (string) $this->plugin_settings->get( 'email_footer', '' ) ),
+			'body_text'          => $this->payment_reminder
+				? sprintf(
+					/* translators: %s: customer's first name. */
+					__( "Hi %s,\n\nGood News! Your IDP Application Has Been Approved!\n\nWe’re pleased to inform you that your application has been approved.\n\nTo receive instant access to your digital International Driving Permit (IDP), please complete your payment using the secure link below.", 'idta-partial' ),
+					$record->greeting_name()
+				)
+				: $this->format_string( (string) $this->plugin_settings->get( 'email_body', '' ) ),
+			'button_text'        => $this->payment_reminder ? __( 'Complete Your Payment Here', 'idta-partial' ) : (string) $this->plugin_settings->get( 'email_button_text', '' ),
+			'footer_text'        => $this->payment_reminder
+				? __( "If you have any questions or need assistance with the payment process, please don’t hesitate to contact us. Our team is always happy to help.\n\nThank you for choosing us. We look forward to providing you with a smooth and hassle-free experience.\n\nBest regards,\nIAA Customer Support Team", 'idta-partial' )
+				: $this->format_string( (string) $this->plugin_settings->get( 'email_footer', '' ) ),
 			'email_heading'      => $this->get_heading(),
 			'additional_content' => $this->get_additional_content(),
 			'sent_to_admin'      => false,

@@ -14,11 +14,11 @@ defined( 'ABSPATH' ) || exit;
 /**
  * Schedules the reminder, and decides at the last moment whether to send it.
  *
- * The guard is the lead's own status, not the scheduler's state. A queue can be
+ * The guard is the lead and order state, not the scheduler's state. A queue can be
  * cleared, a job lost, an action run twice by a worker that timed out and
- * retried; none of that may produce a second email, and a lead that converted
- * after the job was queued must produce none. Reading the row at the moment of
- * sending is the only check that holds under all of those.
+ * retried; none of that may produce a second email, and a paid order must
+ * suppress the reminder. Reading the row and order at send time is the check
+ * that holds under all of those.
  */
 final class Reminder_Scheduler {
 
@@ -131,8 +131,8 @@ final class Reminder_Scheduler {
 	 * The action is deliberately left queued rather than cancelled. Cancelling
 	 * deletes it, and with it the record that a reminder was ever due — so the
 	 * ordinary, successful case would leave no trace at all. Left in place it
-	 * runs, finds the lead converted, writes that down and sends nothing, which
-	 * is both the required behaviour and a readable audit trail.
+	 * runs and checks the order's current payment state: paid orders are suppressed,
+	 * while unpaid orders get the payment reminder.
 	 *
 	 * @param int $partial_id Lead ID.
 	 * @param int $order_id   Order that converted it.
@@ -143,7 +143,7 @@ final class Reminder_Scheduler {
 				$action_id,
 				sprintf(
 					/* translators: 1: lead ID, 2: order ID. */
-					__( 'Partial application #%1$d converted to order #%2$d. This reminder will send nothing when it runs.', 'idta-partial' ),
+					__( 'Partial application #%1$d linked to order #%2$d. Its payment status will be checked when the reminder runs.', 'idta-partial' ),
 					$partial_id,
 					$order_id
 				)
@@ -225,8 +225,11 @@ final class Reminder_Scheduler {
 			)
 		);
 
+		$payment_url       = $this->payment_url_for_unpaid_order( $record );
+		$has_unpaid_order  = Record::STATUS_CONVERTED === $record->status && '' !== $payment_url;
+
 		// 2. It has not already converted or been reminded.
-		if ( ! $record->is_open() ) {
+		if ( ! $record->is_open() && ! $has_unpaid_order ) {
 			$this->log->step(
 				sprintf(
 					/* translators: %s: lead status. */
@@ -237,18 +240,18 @@ final class Reminder_Scheduler {
 
 			$this->log->finish(
 				Record::STATUS_CONVERTED === $record->status
-					? sprintf(
-						/* translators: %d: order ID. */
-						__( 'The customer completed order #%d; nothing sent.', 'idta-partial' ),
-						$record->order_id
-					)
+					? __( 'The lead is converted and has no payable order; nothing sent.', 'idta-partial' )
 					: __( 'This lead has already been processed; nothing sent.', 'idta-partial' )
 			);
 
 			return;
 		}
 
-		$this->log->step( __( 'Status is "new", so a reminder is still due.', 'idta-partial' ) );
+		$this->log->step(
+			$has_unpaid_order
+				? __( 'The linked order is unpaid, so its payment reminder is still due.', 'idta-partial' )
+				: __( 'Status is "new", so a reminder is still due.', 'idta-partial' )
+		);
 
 		// 3. There is somewhere to send it.
 		if ( '' === $record->email || ! is_email( $record->email ) ) {
@@ -301,13 +304,12 @@ final class Reminder_Scheduler {
 
 		// 7. WooCommerce itself has no matching order.
 		/*
-		 * In payment_complete mode an unpaid order is not a conversion, so only
-		 * the paid statuses may suppress the reminder here — otherwise this
-		 * check would undo the whole point of that mode.
+		 * Only paid statuses suppress the reminder here. An unpaid order is the
+		 * reason the separate payment reminder exists, regardless of conversion mode.
 		 */
-		$statuses = $this->settings->converts_on_order() || ! function_exists( 'wc_get_is_paid_statuses' )
-			? array()
-			: (array) wc_get_is_paid_statuses();
+		$statuses = function_exists( 'wc_get_is_paid_statuses' )
+			? (array) wc_get_is_paid_statuses()
+			: array( 'wc-processing', 'wc-completed' );
 
 		$order_id = $this->repository->find_order_for_email( $record->email, $record->created_at, $statuses );
 
@@ -326,10 +328,14 @@ final class Reminder_Scheduler {
 			return;
 		}
 
-		$this->log->step( __( 'No WooCommerce order exists for this address; the application really was abandoned.', 'idta-partial' ) );
+		$this->log->step(
+			'' !== $payment_url
+				? __( 'A WooCommerce order is awaiting payment; sending the payment reminder.', 'idta-partial' )
+				: __( 'No payable order was found; sending the unfinished-application reminder.', 'idta-partial' )
+		);
 
 		// 8. Hand it to WooCommerce's mailer.
-		$email = $this->email();
+		$email = $this->email( '' !== $payment_url );
 
 		if ( null === $email ) {
 			$this->log->step( __( 'The reminder email is not registered with WooCommerce.', 'idta-partial' ) );
@@ -338,7 +344,7 @@ final class Reminder_Scheduler {
 			return;
 		}
 
-		$sent = $email->trigger( $record );
+		$sent = $email->trigger( $record, $payment_url );
 
 		$this->log->step(
 			$sent
@@ -432,7 +438,8 @@ final class Reminder_Scheduler {
 			);
 		}
 
-		$email = $this->email();
+		$payment_url = $this->payment_url_for_unpaid_order( $record );
+		$email       = $this->email( '' !== $payment_url );
 
 		if ( null === $email ) {
 			return array(
@@ -441,7 +448,7 @@ final class Reminder_Scheduler {
 			);
 		}
 
-		$sent = $email->trigger( $record );
+		$sent = $email->trigger( $record, $payment_url );
 
 		$this->repository->record_send( $record->id, $sent );
 
@@ -462,7 +469,7 @@ final class Reminder_Scheduler {
 	 *
 	 * @return Reminder_Email|null
 	 */
-	private function email(): ?Reminder_Email {
+	private function email( bool $payment_reminder = false ): ?Reminder_Email {
 		if ( ! function_exists( 'WC' ) ) {
 			return null;
 		}
@@ -474,9 +481,33 @@ final class Reminder_Scheduler {
 		}
 
 		$emails = $mailer->get_emails();
-		$email  = $emails['IDTA_Partial_Reminder'] ?? null;
+		$key    = $payment_reminder ? 'IDTA_Partial_Unpaid_Order_Reminder' : 'IDTA_Partial_Reminder';
+		$email  = $emails[ $key ] ?? null;
 
 		return $email instanceof Reminder_Email ? $email : null;
+	}
+
+	/**
+	 * Pay-for-order URL when this lead has an order which still needs payment.
+	 *
+	 * @param Record $record Lead.
+	 *
+	 * @return string
+	 */
+	private function payment_url_for_unpaid_order( Record $record ): string {
+		if ( ! function_exists( 'wc_get_order' ) || $record->order_id <= 0 ) {
+			return '';
+		}
+
+		$order = wc_get_order( $record->order_id );
+
+		if ( ! $order instanceof \WC_Order || ! $order->needs_payment() ) {
+			return '';
+		}
+
+		$url = $order->get_checkout_payment_url();
+
+		return is_string( $url ) ? $url : '';
 	}
 
 	/**
