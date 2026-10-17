@@ -245,7 +245,7 @@ final class Reminder_Email extends \WC_Email {
 			'body_text'          => $this->payment_reminder
 				? sprintf(
 					/* translators: %s: customer's first name. */
-					__( "Hi %s,\n\nGood News! Your IDP Application Has Been Approved!\n\nWe’re pleased to inform you that your application has been approved.\n\nTo receive instant access to your digital International Driving Permit (IDP), please complete your payment using the secure link below.", 'idta-partial' ),
+					__( "Hi %s,\n\nGood News! Your IDP Application Has Been Approved!\n\nTo receive instant access to your digital International Driving Permit (IDP), please complete your payment using the secure link below.", 'idta-partial' ),
 					$record->greeting_name()
 				)
 				: $this->format_string( (string) $this->plugin_settings->get( 'email_body', '' ) ),
