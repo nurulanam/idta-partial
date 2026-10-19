@@ -37,13 +37,14 @@ final class Repository {
 	 * Everything except `payload`. Kept as a constant so the list query and this
 	 * reasoning stay next to each other.
 	 */
-	private const LIST_COLUMNS = 'id, lead_token, resume_token, status, trashed_status, source, email, first_name, last_name, phone, application_type, validity_years, product_id, currency, locale, unsubscribed, reminder_enabled, reminder_count, order_id, created_at, updated_at, reminder_due_at, reminder_sent_at, converted_at';
+	private const LIST_COLUMNS = 'id, lead_token, resume_token, status, trashed_status, source, email, first_name, last_name, phone, location, application_type, validity_years, product_id, currency, locale, unsubscribed, reminder_enabled, reminder_count, order_id, created_at, updated_at, reminder_due_at, reminder_sent_at, converted_at';
 
 	private const MUTABLE = array(
 		'email',
 		'first_name',
 		'last_name',
 		'phone',
+		'location',
 		'application_type',
 		'validity_years',
 		'product_id',
@@ -83,6 +84,7 @@ final class Repository {
 			'first_name'       => (string) ( $data['first_name'] ?? '' ),
 			'last_name'        => (string) ( $data['last_name'] ?? '' ),
 			'phone'            => (string) ( $data['phone'] ?? '' ),
+			'location'         => (string) ( $data['location'] ?? '' ),
 			'application_type' => (string) ( $data['application_type'] ?? '' ),
 			'validity_years'   => (int) ( $data['validity_years'] ?? 0 ),
 			'product_id'       => (int) ( $data['product_id'] ?? 0 ),
@@ -685,7 +687,8 @@ final class Repository {
 
 		if ( '' !== $search ) {
 			$like     = '%' . $wpdb->esc_like( $search ) . '%';
-			$where[]  = '( email LIKE %s OR first_name LIKE %s OR last_name LIKE %s OR lead_token = %s )';
+			$where[]  = '( email LIKE %s OR first_name LIKE %s OR last_name LIKE %s OR location LIKE %s OR lead_token = %s )';
+			$values[] = $like;
 			$values[] = $like;
 			$values[] = $like;
 			$values[] = $like;

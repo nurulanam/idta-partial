@@ -459,6 +459,7 @@ final class Admin_Page {
 			__( 'ID', 'idta-partial' ),
 			__( 'Status', 'idta-partial' ),
 			__( 'Customer', 'idta-partial' ),
+			__( 'Location', 'idta-partial' ),
 			__( 'Lead token', 'idta-partial' ),
 			__( 'Application', 'idta-partial' ),
 			__( 'Reminder', 'idta-partial' ),
@@ -470,7 +471,7 @@ final class Admin_Page {
 		echo '</tr></thead><tbody>';
 
 		if ( array() === $result['rows'] ) {
-			printf( '<tr><td colspan="7">%s</td></tr>', esc_html__( 'No partial applications yet.', 'idta-partial' ) );
+			printf( '<tr><td colspan="8">%s</td></tr>', esc_html__( 'No partial applications yet.', 'idta-partial' ) );
 		}
 
 		foreach ( $result['rows'] as $record ) {
@@ -516,6 +517,11 @@ final class Admin_Page {
 			esc_html( '' !== $record->full_name() ? $record->full_name() : __( '(no name)', 'idta-partial' ) ),
 			esc_html( $record->email ),
 			'' !== $record->phone ? '<div class="idta-partial-sub">' . esc_html( $record->phone ) . '</div>' : ''
+		);
+
+		printf(
+			'<td>%s</td>',
+			'' !== $record->location ? esc_html( $record->location ) : '<span class="idta-partial-sub">—</span>'
 		);
 
 		printf( '<td>%s</td>', $this->token_cell( $record ) ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Built and escaped in token_cell().
@@ -825,6 +831,7 @@ final class Admin_Page {
 				__( 'Name', 'idta-partial' )            => $record->full_name(),
 				__( 'Email', 'idta-partial' )           => $record->email,
 				__( 'Phone', 'idta-partial' )           => $record->phone,
+				__( 'Location', 'idta-partial' )        => $record->location,
 				__( 'Date of birth', 'idta-partial' )   => (string) $record->payload( 'date_of_birth', '' ),
 				__( 'Gender', 'idta-partial' )          => (string) $record->payload( 'gender', '' ),
 				__( 'Country of birth', 'idta-partial' ) => $this->country( $record, 'country_of_birth' ),
@@ -854,6 +861,7 @@ final class Admin_Page {
 			array(
 				__( 'Lead token', 'idta-partial' )     => $record->lead_token,
 				__( 'Status', 'idta-partial' )         => $this->status_label( $record->status ),
+				__( 'Location', 'idta-partial' )       => $record->location,
 				__( 'Created (UTC)', 'idta-partial' )  => $record->created_at,
 				__( 'Updated (UTC)', 'idta-partial' )  => $record->updated_at,
 				__( 'Reminder due (UTC)', 'idta-partial' )  => (string) $record->reminder_due_at,

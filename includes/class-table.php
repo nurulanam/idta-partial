@@ -19,7 +19,7 @@ final class Table {
 	/**
 	 * Schema version. Bump when the CREATE TABLE below changes.
 	 */
-	public const DB_VERSION = '1.2.0';
+	public const DB_VERSION = '1.3.0';
 
 	/**
 	 * Option recording the installed schema version.
@@ -131,6 +131,7 @@ final class Table {
 			first_name varchar(100) NOT NULL DEFAULT '',
 			last_name varchar(100) NOT NULL DEFAULT '',
 			phone varchar(40) NOT NULL DEFAULT '',
+			location varchar(100) NOT NULL DEFAULT '',
 			application_type varchar(40) NOT NULL DEFAULT '',
 			validity_years tinyint(3) unsigned NOT NULL DEFAULT 0,
 			product_id bigint(20) unsigned NOT NULL DEFAULT 0,

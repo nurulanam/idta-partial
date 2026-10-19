@@ -54,6 +54,7 @@ final class REST_Controller {
 		'destination_country'    => 'country',
 
 		// Step 3 — the applicant.
+		'location'               => 'text',
 		'gender'                 => 'text',
 		'date_of_birth'          => 'text',
 		'dial_code'              => 'text',
@@ -251,6 +252,15 @@ final class REST_Controller {
 
 		$payload = $this->clean_payload( $body['payload'] ?? array() );
 
+		$raw_location = $body['location'] ?? ( $body['payload']['location'] ?? '' );
+		if ( is_array( $raw_location ) ) {
+			$loc_name = trim( (string) ( $raw_location['name'] ?? '' ) );
+			$loc_code = strtoupper( trim( (string) ( $raw_location['code'] ?? '' ) ) );
+			$location = ( '' !== $loc_name && '' !== $loc_code ) ? "{$loc_name} ({$loc_code})" : ( '' !== $loc_name ? $loc_name : $loc_code );
+		} else {
+			$location = $this->text( (string) $raw_location, 100 );
+		}
+
 		$result = $this->repository->upsert(
 			array(
 				'lead_token'       => $lead_token,
@@ -258,6 +268,7 @@ final class REST_Controller {
 				'first_name'       => $this->text( $body['first_name'] ?? '', 100 ),
 				'last_name'        => $this->text( $body['last_name'] ?? '', 100 ),
 				'phone'            => $this->text( $body['phone'] ?? '', 40 ),
+				'location'         => $location,
 				'application_type' => $this->enum( $body['application_type'] ?? '', array( 'print_digital', 'digital_only' ) ),
 				'validity_years'   => max( 0, min( 255, (int) ( $body['validity_years'] ?? 0 ) ) ),
 				'product_id'       => max( 0, (int) ( $body['product_id'] ?? 0 ) ),

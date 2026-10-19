@@ -32,6 +32,7 @@ final class Record {
 	public string $first_name      = '';
 	public string $last_name       = '';
 	public string $phone           = '';
+	public string $location        = '';
 	public string $application_type = '';
 	public int $validity_years     = 0;
 	public int $product_id         = 0;
@@ -74,6 +75,7 @@ final class Record {
 		$record->first_name       = (string) ( $row['first_name'] ?? '' );
 		$record->last_name        = (string) ( $row['last_name'] ?? '' );
 		$record->phone            = (string) ( $row['phone'] ?? '' );
+		$record->location         = (string) ( $row['location'] ?? '' );
 		$record->application_type = (string) ( $row['application_type'] ?? '' );
 		$record->validity_years   = (int) ( $row['validity_years'] ?? 0 );
 		$record->product_id       = (int) ( $row['product_id'] ?? 0 );
