@@ -888,7 +888,7 @@ final class Admin_Page {
 		echo '</div>';
 
 		printf(
-			'<h3>%s</h3><p class="description">%s</p><p><code class="idta-partial-resume">%s</code></p>',
+			'<div class="idta-partial-panel idta-partial-panel--resume"><h3>%s</h3><p class="description">%s</p><p><code class="idta-partial-resume">%s</code></p></div>',
 			esc_html__( 'Resume link', 'idta-partial' ),
 			esc_html__( 'The link this lead\'s reminder email carries. It restores the plan and the countries only — never personal data, which must not travel in a URL.', 'idta-partial' ),
 			esc_html( $this->resume->for_record( $record ) )
@@ -1697,46 +1697,76 @@ final class Admin_Page {
 
 			.idta-partial-panels {
 				display: grid;
-				grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
-				gap: 16px;
-				margin-top: 16px;
+				grid-template-columns: repeat(3, minmax(0, 1fr));
+				gap: 20px;
+				margin-top: 20px;
+				width: 100%;
 			}
 			.idta-partial-panel {
 				background: #fff;
 				border: 1px solid #c3c4c7;
-				border-radius: 4px;
-				padding: 4px 16px 12px;
+				border-radius: 6px;
+				padding: 16px 22px 20px;
+				box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+				box-sizing: border-box;
+			}
+			.idta-partial-panel h3 {
+				margin: 0 0 14px;
+				padding-bottom: 10px;
+				border-bottom: 1px solid #f0f0f1;
+				font-size: 15px;
+				font-weight: 600;
+				color: #1d2327;
 			}
 			.idta-partial-kv { width: 100%; border-collapse: collapse; }
 			.idta-partial-kv th {
 				text-align: left;
 				font-weight: 500;
 				color: #646970;
-				padding: 6px 12px 6px 0;
+				padding: 8px 12px 8px 0;
 				vertical-align: top;
-				width: 42%;
+				width: 36%;
+				font-size: 13px;
 			}
-			.idta-partial-kv td { padding: 6px 0; word-break: break-word; }
+			.idta-partial-kv td {
+				padding: 8px 0;
+				word-break: break-word;
+				font-size: 13px;
+				color: #2c3338;
+			}
 			.idta-partial-kv tr + tr th,
 			.idta-partial-kv tr + tr td { border-top: 1px solid #f0f0f1; }
-			.idta-partial-resume { display: inline-block; padding: 8px 12px; word-break: break-all; }
+			.idta-partial-panel--resume {
+				margin-top: 20px;
+			}
+			.idta-partial-resume {
+				display: block;
+				padding: 10px 14px;
+				word-break: break-all;
+				background: #f6f7f7;
+				border: 1px solid #dcdcde;
+				border-radius: 4px;
+				font-size: 13px;
+				font-family: Menlo, Consolas, monospace;
+			}
 
 			.idta-partial-panel--docs {
 				grid-column: 1 / -1;
+				margin-top: 6px;
 			}
 			.idta-partial-docs-grid {
 				display: grid;
-				grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-				gap: 16px;
-				margin-top: 12px;
+				grid-template-columns: repeat(4, minmax(0, 1fr));
+				gap: 20px;
+				margin-top: 16px;
 			}
 			.idta-partial-doc-item {
 				display: flex;
 				flex-direction: column;
 			}
 			.idta-partial-doc-label {
-				margin: 0 0 6px;
-				font-size: 12px;
+				margin: 0 0 8px;
+				font-size: 13px;
 				font-weight: 600;
 				color: #1d2327;
 			}
@@ -1746,30 +1776,48 @@ final class Admin_Page {
 				justify-content: center;
 				background: #f6f7f7;
 				border: 1px solid #c3c4c7;
-				border-radius: 4px;
-				padding: 6px;
-				min-height: 120px;
+				border-radius: 6px;
+				padding: 10px;
+				min-height: 180px;
 				text-align: center;
 				transition: border-color .15s ease, box-shadow .15s ease;
 			}
 			.idta-partial-doc-thumb:hover {
 				border-color: #2271b1;
-				box-shadow: 0 2px 6px rgba(0,0,0,0.15);
+				box-shadow: 0 3px 8px rgba(0,0,0,0.12);
 			}
 			.idta-partial-doc-thumb img {
 				max-width: 100%;
-				max-height: 110px;
+				max-height: 160px;
 				object-fit: contain;
 				display: block;
 				margin: 0 auto;
+				border-radius: 4px;
 			}
 			.idta-partial-doc-actions {
-				margin-top: 8px;
+				margin-top: 10px;
 			}
 			.idta-partial-doc-actions .button {
 				width: 100%;
 				text-align: center;
 				display: block;
+				font-size: 12px;
+				height: 30px;
+				line-height: 28px;
+			}
+
+			@media (max-width: 1080px) {
+				.idta-partial-panels {
+					grid-template-columns: 1fr;
+				}
+				.idta-partial-docs-grid {
+					grid-template-columns: repeat(2, minmax(0, 1fr));
+				}
+			}
+			@media (max-width: 600px) {
+				.idta-partial-docs-grid {
+					grid-template-columns: 1fr;
+				}
 			}
 		</style>
 		<?php
