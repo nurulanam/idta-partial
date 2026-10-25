@@ -198,6 +198,8 @@ final class REST_Controller {
 			);
 		}
 
+		Table::maybe_install();
+
 		if ( ! Table::exists() ) {
 			return new \WP_Error(
 				'idta_partial_no_table',

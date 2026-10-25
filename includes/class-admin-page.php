@@ -526,8 +526,10 @@ final class Admin_Page {
 
 		printf( '<td>%s</td>', $this->token_cell( $record ) ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Built and escaped in token_cell().
 
+		$has_docs = '' !== $record->assets || '' !== (string) $record->payload( 'assets', (string) $record->payload( 'folder', '' ) );
+
 		printf(
-			'<td>%1$s%2$s</td>',
+			'<td>%1$s%2$s%3$s</td>',
 			esc_html( $this->application_label( $record ) ),
 			$record->validity_years > 0
 				? '<div class="idta-partial-sub">' . esc_html(
@@ -537,6 +539,9 @@ final class Admin_Page {
 						(int) $record->validity_years
 					)
 				) . '</div>'
+				: '',
+			$has_docs
+				? '<div class="idta-partial-sub" style="color:#135e96;"><span class="dashicons dashicons-images-alt" style="font-size:14px;width:14px;height:14px;vertical-align:middle;margin-right:2px;"></span>' . esc_html__( 'Docs uploaded', 'idta-partial' ) . '</div>'
 				: ''
 		);
 
@@ -878,6 +883,8 @@ final class Admin_Page {
 			)
 		);
 
+		$this->render_documents_panel( $record );
+
 		echo '</div>';
 
 		printf(
@@ -888,6 +895,73 @@ final class Admin_Page {
 		);
 
 		$this->render_copy_script();
+	}
+
+	/**
+	 * Render the uploaded documents preview panel.
+	 *
+	 * @param Record $record Lead record.
+	 */
+	private function render_documents_panel( Record $record ): void {
+		$folder = trim( (string) ( $record->assets ?: (string) $record->payload( 'assets', (string) $record->payload( 'folder', '' ) ) ) );
+
+		echo '<div class="idta-partial-panel idta-partial-panel--docs">';
+		printf( '<h3>%s</h3>', esc_html__( 'Uploaded documents', 'idta-partial' ) );
+
+		if ( '' === $folder ) {
+			printf(
+				'<p class="idta-partial-sub">%s</p>',
+				esc_html__( 'No documents uploaded yet (customer has not reached document upload step).', 'idta-partial' )
+			);
+			echo '</div>';
+
+			return;
+		}
+
+		$labels = array(
+			'passport_photo' => __( 'Passport-Style Photo', 'idta-partial' ),
+			'license_front'  => __( "Driver's Licence (Front)", 'idta-partial' ),
+			'license_back'   => __( "Driver's Licence (Back)", 'idta-partial' ),
+			'signature'      => __( 'Signature', 'idta-partial' ),
+		);
+
+		$filenames = array(
+			'passport_photo' => 'portrait.jpg',
+			'license_front'  => 'license-front.jpg',
+			'license_back'   => 'license-back.jpg',
+			'signature'      => 'signature.png',
+		);
+
+		$base_url   = $this->settings->asset_base_url( $record->source );
+		$folder_url = trailingslashit( $base_url . ltrim( $folder, '/' ) );
+
+		echo '<div class="idta-partial-docs-grid">';
+
+		foreach ( $labels as $key => $label ) {
+			$file_url = $folder_url . $filenames[ $key ];
+
+			echo '<div class="idta-partial-doc-item">';
+			printf( '<p class="idta-partial-doc-label">%s</p>', esc_html( $label ) );
+			printf(
+				'<a href="%1$s" target="_blank" rel="noreferrer noopener" class="idta-partial-doc-thumb" title="%2$s"><img src="%1$s" alt="%2$s" loading="lazy"></a>',
+				esc_url( $file_url ),
+				esc_attr( sprintf( __( 'View %s', 'idta-partial' ), $label ) )
+			);
+			printf(
+				'<div class="idta-partial-doc-actions"><a href="%1$s" target="_blank" rel="noreferrer noopener" class="button button-small">%2$s &nearr;</a></div>',
+				esc_url( $file_url ),
+				esc_html__( 'View', 'idta-partial' )
+			);
+			echo '</div>';
+		}
+
+		echo '</div>';
+		printf(
+			'<p class="description" style="margin-top:14px;"><strong>%1$s:</strong> <code>%2$s</code></p>',
+			esc_html__( 'Assets folder', 'idta-partial' ),
+			esc_html( $folder )
+		);
+		echo '</div>';
 	}
 
 	/**
@@ -1646,6 +1720,57 @@ final class Admin_Page {
 			.idta-partial-kv tr + tr th,
 			.idta-partial-kv tr + tr td { border-top: 1px solid #f0f0f1; }
 			.idta-partial-resume { display: inline-block; padding: 8px 12px; word-break: break-all; }
+
+			.idta-partial-panel--docs {
+				grid-column: 1 / -1;
+			}
+			.idta-partial-docs-grid {
+				display: grid;
+				grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+				gap: 16px;
+				margin-top: 12px;
+			}
+			.idta-partial-doc-item {
+				display: flex;
+				flex-direction: column;
+			}
+			.idta-partial-doc-label {
+				margin: 0 0 6px;
+				font-size: 12px;
+				font-weight: 600;
+				color: #1d2327;
+			}
+			.idta-partial-doc-thumb {
+				display: flex;
+				align-items: center;
+				justify-content: center;
+				background: #f6f7f7;
+				border: 1px solid #c3c4c7;
+				border-radius: 4px;
+				padding: 6px;
+				min-height: 120px;
+				text-align: center;
+				transition: border-color .15s ease, box-shadow .15s ease;
+			}
+			.idta-partial-doc-thumb:hover {
+				border-color: #2271b1;
+				box-shadow: 0 2px 6px rgba(0,0,0,0.15);
+			}
+			.idta-partial-doc-thumb img {
+				max-width: 100%;
+				max-height: 110px;
+				object-fit: contain;
+				display: block;
+				margin: 0 auto;
+			}
+			.idta-partial-doc-actions {
+				margin-top: 8px;
+			}
+			.idta-partial-doc-actions .button {
+				width: 100%;
+				text-align: center;
+				display: block;
+			}
 		</style>
 		<?php
 	}

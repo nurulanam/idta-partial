@@ -119,6 +119,14 @@ final class Repository {
 		$updates = array( 'updated_at = VALUES(updated_at)' );
 
 		foreach ( self::MUTABLE as $column ) {
+			if ( 'assets' === $column ) {
+				$updates[] = sprintf(
+					'assets = IF(status = %1$s, assets, IF(VALUES(assets) != %2$s, VALUES(assets), assets))',
+					"'" . Record::STATUS_CONVERTED . "'",
+					"''"
+				);
+				continue;
+			}
 			$updates[] = sprintf(
 				'%1$s = IF(status = %2$s, %1$s, VALUES(%1$s))',
 				$column,

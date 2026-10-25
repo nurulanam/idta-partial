@@ -52,6 +52,18 @@ final class Settings {
 	);
 
 	/**
+	 * Default upload sources and their base URLs.
+	 *
+	 * Mirrors idta-pdf's Order_Data::SOURCES.
+	 *
+	 * @var array<string,string>
+	 */
+	public const DEFAULT_ASSET_SOURCES = array(
+		'idta' => 'https://idta-upload.shamim66ewu.workers.dev/files/',
+		'idpa' => 'https://pub-1c2e77688359483ca692ff2d8369b41b.r2.dev/',
+	);
+
+	/**
 	 * Cached option values.
 	 *
 	 * @var array<string,mixed>|null
@@ -302,6 +314,52 @@ final class Settings {
 		}
 
 		return '';
+	}
+
+	/**
+	 * Upload sources, keyed by source value.
+	 *
+	 * Uses idta-pdf's configured asset sources when available, falling back to
+	 * default asset sources. Filterable via idta_partial_asset_sources.
+	 *
+	 * @return array<string,string>
+	 */
+	public function asset_sources(): array {
+		if ( class_exists( '\IDTA\PDF\Order_Data' ) && method_exists( '\IDTA\PDF\Order_Data', 'sources' ) ) {
+			$pdf_sources = \IDTA\PDF\Order_Data::sources();
+			if ( is_array( $pdf_sources ) && array() !== $pdf_sources ) {
+				return (array) apply_filters( 'idta_partial_asset_sources', $pdf_sources );
+			}
+		}
+
+		$sources = (array) $this->get( 'asset_sources', self::DEFAULT_ASSET_SOURCES );
+		if ( array() === $sources ) {
+			$sources = self::DEFAULT_ASSET_SOURCES;
+		}
+
+		return (array) apply_filters( 'idta_partial_asset_sources', $sources );
+	}
+
+	/**
+	 * Base URL for uploaded verification documents.
+	 *
+	 * @param string $source Source key (e.g. 'idta').
+	 *
+	 * @return string
+	 */
+	public function asset_base_url( string $source ): string {
+		$sources = $this->asset_sources();
+		$key     = strtolower( trim( $source ) );
+
+		if ( isset( $sources[ $key ] ) && '' !== trim( (string) $sources[ $key ] ) ) {
+			return trailingslashit( trim( (string) $sources[ $key ] ) );
+		}
+
+		if ( isset( $sources['idta'] ) && '' !== trim( (string) $sources['idta'] ) ) {
+			return trailingslashit( trim( (string) $sources['idta'] ) );
+		}
+
+		return 'https://idta-upload.shamim66ewu.workers.dev/files/';
 	}
 
 	/**

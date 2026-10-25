@@ -19,7 +19,7 @@ final class Table {
 	/**
 	 * Schema version. Bump when the CREATE TABLE below changes.
 	 */
-	public const DB_VERSION = '1.4.0';
+	public const DB_VERSION = '1.4.1';
 
 	/**
 	 * Option recording the installed schema version.
@@ -69,12 +69,30 @@ final class Table {
 	}
 
 	/**
+	 * Check if a column exists on the table.
+	 *
+	 * @param string $column Column name.
+	 *
+	 * @return bool
+	 */
+	public static function has_column( string $column ): bool {
+		global $wpdb;
+
+		$table = self::name();
+
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+		$col = $wpdb->get_results( $wpdb->prepare( "SHOW COLUMNS FROM {$table} LIKE %s", $column ) );
+
+		return ! empty( $col );
+	}
+
+	/**
 	 * Create or update the table when the stored version is behind.
 	 *
 	 * Cheap enough to call on every request: one option read when up to date.
 	 */
 	public static function maybe_install(): void {
-		if ( get_option( self::VERSION_OPTION ) === self::DB_VERSION ) {
+		if ( get_option( self::VERSION_OPTION ) === self::DB_VERSION && self::has_column( 'assets' ) ) {
 			return;
 		}
 
@@ -160,6 +178,12 @@ final class Table {
 
 		dbDelta( $sql );
 
+		// Ensure assets column exists even if dbDelta did not alter it.
+		if ( ! self::has_column( 'assets' ) ) {
+			// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+			$wpdb->query( "ALTER TABLE {$table} ADD COLUMN assets varchar(100) NOT NULL DEFAULT '' AFTER locale" );
+		}
+
 		update_option( self::VERSION_OPTION, self::DB_VERSION );
 
 		// A table created part-way through a request has to be visible to the
@@ -177,6 +201,8 @@ final class Table {
 	 * @return bool
 	 */
 	public static function exists(): bool {
+		self::maybe_install();
+
 		if ( null !== self::$exists ) {
 			return self::$exists;
 		}
