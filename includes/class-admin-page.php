@@ -841,8 +841,9 @@ final class Admin_Page {
 				__( 'Gender', 'idta-partial' )          => (string) $record->payload( 'gender', '' ),
 				__( 'Country of birth', 'idta-partial' ) => $this->country( $record, 'country_of_birth' ),
 				__( 'Residence', 'idta-partial' )       => $this->country( $record, 'country_of_residence' ),
-				__( 'Licence classes', 'idta-partial' ) => $this->categories( $record ),
-				__( 'Holds a licence', 'idta-partial' ) => (string) $record->payload( 'has_license', '' ),
+				__( 'Licence classes', 'idta-partial' )          => $this->categories( $record ),
+				__( 'Holds a licence', 'idta-partial' )          => (string) $record->payload( 'has_license', '' ),
+				__( "Driver's licence number", 'idta-partial' ) => $record->driver_license_number(),
 			)
 		);
 

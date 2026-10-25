@@ -175,21 +175,7 @@ final class Plugin {
 			return;
 		}
 
-		/*
-		 * Earlier versions stored the driver's licence number in the payload.
-		 * The field has since been dropped from both the form and the endpoint,
-		 * but that only stops new ones arriving — the rows already holding one
-		 * have to be cleared here, or the decision not to keep them is only true
-		 * of leads captured from today.
-		 */
 		$this->migrate_resume_url();
-
-		$stripped = $this->repository->strip_payload_key( 'driver_license_number' );
-
-		if ( $stripped > 0 && defined( 'WP_DEBUG' ) && WP_DEBUG ) {
-			// phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log
-			error_log( sprintf( '[idta-partial] Removed the stored licence number from %d lead(s).', $stripped ) );
-		}
 
 		update_option( self::VERSION_OPTION, VERSION );
 	}

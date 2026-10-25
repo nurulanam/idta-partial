@@ -141,6 +141,15 @@ final class Record {
 	}
 
 	/**
+	 * Driver's licence number from payload.
+	 *
+	 * @return string
+	 */
+	public function driver_license_number(): string {
+		return (string) $this->payload( 'driver_license_number', (string) $this->payload( 'license_number', '' ) );
+	}
+
+	/**
 	 * Whether this lead is still a candidate for a reminder.
 	 *
 	 * @return bool

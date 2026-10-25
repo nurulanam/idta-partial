@@ -697,12 +697,13 @@ final class Repository {
 
 		if ( '' !== $search ) {
 			$like     = '%' . $wpdb->esc_like( $search ) . '%';
-			$where[]  = '( email LIKE %s OR first_name LIKE %s OR last_name LIKE %s OR location LIKE %s OR lead_token = %s )';
+			$where[]  = '( email LIKE %s OR first_name LIKE %s OR last_name LIKE %s OR location LIKE %s OR lead_token = %s OR payload LIKE %s )';
 			$values[] = $like;
 			$values[] = $like;
 			$values[] = $like;
 			$values[] = $like;
 			$values[] = $search;
+			$values[] = $like;
 		}
 
 		$clause = implode( ' AND ', $where );

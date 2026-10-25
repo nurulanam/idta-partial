@@ -61,14 +61,9 @@ final class REST_Controller {
 		'phone_national'         => 'text',
 		'country_of_birth'       => 'country',
 		'country_of_residence'   => 'country',
-		/*
-		 * The driver's licence number is deliberately absent, alongside the four
-		 * images. It is a government identifier, it is of no use to a reminder
-		 * email, and an unconverted lead is exactly the wrong place to hold one:
-		 * unpaid, unverified, and kept for weeks. An older frontend that still
-		 * sends it is not an error — the allowlist simply drops it on the floor.
-		 */
 		'license_categories'     => 'categories',
+		'driver_license_number'  => 'text',
+		'license_number'         => 'text',
 		'assets'                 => 'text',
 		'folder'                 => 'text',
 
@@ -267,6 +262,11 @@ final class REST_Controller {
 
 		$raw_assets = $body['assets'] ?? ( $body['payload']['assets'] ?? ( $body['folder'] ?? ( $body['payload']['folder'] ?? '' ) ) );
 		$assets     = $this->text( (string) $raw_assets, 100 );
+
+		$raw_dl_no = $body['driver_license_number'] ?? ( $body['payload']['driver_license_number'] ?? ( $body['license_number'] ?? ( $body['payload']['license_number'] ?? '' ) ) );
+		if ( '' !== trim( (string) $raw_dl_no ) && ! isset( $payload['driver_license_number'] ) ) {
+			$payload['driver_license_number'] = $this->text( (string) $raw_dl_no, 100 );
+		}
 
 		$result = $this->repository->upsert(
 			array(
