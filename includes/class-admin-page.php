@@ -843,7 +843,6 @@ final class Admin_Page {
 				__( 'Residence', 'idta-partial' )       => $this->country( $record, 'country_of_residence' ),
 				__( 'Licence classes', 'idta-partial' ) => $this->categories( $record ),
 				__( 'Holds a licence', 'idta-partial' ) => (string) $record->payload( 'has_license', '' ),
-				__( 'Assets Folder', 'idta-partial' )   => $record->assets ?: (string) $record->payload( 'assets', (string) $record->payload( 'folder', '' ) ),
 			)
 		);
 
@@ -957,9 +956,11 @@ final class Admin_Page {
 
 		echo '</div>';
 		printf(
-			'<p class="description" style="margin-top:14px;"><strong>%1$s:</strong> <code>%2$s</code></p>',
+			'<p style="margin:16px 0 0;font-size:13px;"><strong>%1$s:</strong> <code>%2$s</code> <button type="button" class="idta-partial-copy" data-copy="%3$s" title="%4$s" aria-label="%4$s"><span class="dashicons dashicons-admin-page" aria-hidden="true"></span></button></p>',
 			esc_html__( 'Assets folder', 'idta-partial' ),
-			esc_html( $folder )
+			esc_html( $folder ),
+			esc_attr( $folder ),
+			esc_attr__( 'Copy assets folder', 'idta-partial' )
 		);
 		echo '</div>';
 	}
