@@ -838,6 +838,7 @@ final class Admin_Page {
 				__( 'Residence', 'idta-partial' )       => $this->country( $record, 'country_of_residence' ),
 				__( 'Licence classes', 'idta-partial' ) => $this->categories( $record ),
 				__( 'Holds a licence', 'idta-partial' ) => (string) $record->payload( 'has_license', '' ),
+				__( 'Assets Folder', 'idta-partial' )   => $record->assets ?: (string) $record->payload( 'assets', (string) $record->payload( 'folder', '' ) ),
 			)
 		);
 

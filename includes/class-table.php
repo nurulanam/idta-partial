@@ -19,7 +19,7 @@ final class Table {
 	/**
 	 * Schema version. Bump when the CREATE TABLE below changes.
 	 */
-	public const DB_VERSION = '1.3.0';
+	public const DB_VERSION = '1.4.0';
 
 	/**
 	 * Option recording the installed schema version.
@@ -137,6 +137,7 @@ final class Table {
 			product_id bigint(20) unsigned NOT NULL DEFAULT 0,
 			currency char(3) NOT NULL DEFAULT '',
 			locale varchar(10) NOT NULL DEFAULT '',
+			assets varchar(100) NOT NULL DEFAULT '',
 			payload longtext NULL,
 			ip_hash char(64) NOT NULL DEFAULT '',
 			unsubscribed tinyint(1) NOT NULL DEFAULT 0,

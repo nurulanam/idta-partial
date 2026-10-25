@@ -37,7 +37,7 @@ final class Repository {
 	 * Everything except `payload`. Kept as a constant so the list query and this
 	 * reasoning stay next to each other.
 	 */
-	private const LIST_COLUMNS = 'id, lead_token, resume_token, status, trashed_status, source, email, first_name, last_name, phone, location, application_type, validity_years, product_id, currency, locale, unsubscribed, reminder_enabled, reminder_count, order_id, created_at, updated_at, reminder_due_at, reminder_sent_at, converted_at';
+	private const LIST_COLUMNS = 'id, lead_token, resume_token, status, trashed_status, source, email, first_name, last_name, phone, location, application_type, validity_years, product_id, currency, locale, assets, unsubscribed, reminder_enabled, reminder_count, order_id, created_at, updated_at, reminder_due_at, reminder_sent_at, converted_at';
 
 	private const MUTABLE = array(
 		'email',
@@ -50,6 +50,7 @@ final class Repository {
 		'product_id',
 		'currency',
 		'locale',
+		'assets',
 		'payload',
 		'ip_hash',
 	);
@@ -90,6 +91,7 @@ final class Repository {
 			'product_id'       => (int) ( $data['product_id'] ?? 0 ),
 			'currency'         => (string) ( $data['currency'] ?? '' ),
 			'locale'           => (string) ( $data['locale'] ?? '' ),
+			'assets'           => (string) ( $data['assets'] ?? '' ),
 			'payload'          => (string) ( $data['payload'] ?? '' ),
 			'ip_hash'          => (string) ( $data['ip_hash'] ?? '' ),
 			'created_at'       => $now,

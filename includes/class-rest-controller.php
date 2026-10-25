@@ -69,6 +69,8 @@ final class REST_Controller {
 		 * sends it is not an error — the allowlist simply drops it on the floor.
 		 */
 		'license_categories'     => 'categories',
+		'assets'                 => 'text',
+		'folder'                 => 'text',
 
 		// Step 3 — the plan.
 		'package'                => 'text',
@@ -261,6 +263,9 @@ final class REST_Controller {
 			$location = $this->text( (string) $raw_location, 100 );
 		}
 
+		$raw_assets = $body['assets'] ?? ( $body['payload']['assets'] ?? ( $body['folder'] ?? ( $body['payload']['folder'] ?? '' ) ) );
+		$assets     = $this->text( (string) $raw_assets, 100 );
+
 		$result = $this->repository->upsert(
 			array(
 				'lead_token'       => $lead_token,
@@ -274,6 +279,7 @@ final class REST_Controller {
 				'product_id'       => max( 0, (int) ( $body['product_id'] ?? 0 ) ),
 				'currency'         => $this->currency( $body['currency'] ?? '' ),
 				'locale'           => $this->text( $body['locale'] ?? '', 10 ),
+				'assets'           => $assets,
 				// Validated against the configured front ends rather than a
 				// hardcoded pair, so adding a source is a settings change and
 				// not a code change.
