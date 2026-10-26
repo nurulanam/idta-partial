@@ -462,6 +462,7 @@ final class Admin_Page {
 			__( 'Location', 'idta-partial' ),
 			__( 'Lead token', 'idta-partial' ),
 			__( 'Application', 'idta-partial' ),
+			__( 'Billing Details', 'idta-partial' ),
 			__( 'Reminder', 'idta-partial' ),
 			__( 'Order', 'idta-partial' ),
 		) as $heading ) {
@@ -471,7 +472,7 @@ final class Admin_Page {
 		echo '</tr></thead><tbody>';
 
 		if ( array() === $result['rows'] ) {
-			printf( '<tr><td colspan="8">%s</td></tr>', esc_html__( 'No partial applications yet.', 'idta-partial' ) );
+			printf( '<tr><td colspan="9">%s</td></tr>', esc_html__( 'No partial applications yet.', 'idta-partial' ) );
 		}
 
 		foreach ( $result['rows'] as $record ) {
@@ -543,6 +544,13 @@ final class Admin_Page {
 			$has_docs
 				? '<div class="idta-partial-sub" style="color:#135e96;"><span class="dashicons dashicons-images-alt" style="font-size:14px;width:14px;height:14px;vertical-align:middle;margin-right:2px;"></span>' . esc_html__( 'Docs uploaded', 'idta-partial' ) . '</div>'
 				: ''
+		);
+
+		printf(
+			'<td>%s</td>',
+			'' !== $record->billing_details
+				? '<div class="idta-partial-sub" style="max-width:220px;word-break:break-word;white-space:pre-line;">' . esc_html( $record->billing_details ) . '</div>'
+				: '<span class="idta-partial-sub">—</span>'
 		);
 
 		printf( '<td>%s</td>', $this->reminder_cell( $record ) ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Built and escaped in reminder_cell().
@@ -862,6 +870,8 @@ final class Admin_Page {
 			)
 		);
 
+		$this->render_billing_panel( $record );
+
 		$this->render_panel(
 			__( 'Tracking', 'idta-partial' ),
 			array(
@@ -895,6 +905,49 @@ final class Admin_Page {
 		);
 
 		$this->render_copy_script();
+	}
+
+	/**
+	 * Render the billing details panel.
+	 *
+	 * @param Record $record Lead record.
+	 */
+	private function render_billing_panel( Record $record ): void {
+		$billing_rows = array();
+		if ( '' !== (string) $record->payload( 'billing_name', '' ) ) {
+			$billing_rows[ __( 'Name', 'idta-partial' ) ] = (string) $record->payload( 'billing_name', '' );
+		}
+		if ( '' !== (string) $record->payload( 'billing_address', '' ) ) {
+			$billing_rows[ __( 'Street address', 'idta-partial' ) ] = (string) $record->payload( 'billing_address', '' );
+		}
+		if ( '' !== (string) $record->payload( 'billing_address_2', '' ) ) {
+			$billing_rows[ __( 'Apartment, suite', 'idta-partial' ) ] = (string) $record->payload( 'billing_address_2', '' );
+		}
+		if ( '' !== (string) $record->payload( 'billing_city', '' ) ) {
+			$billing_rows[ __( 'City', 'idta-partial' ) ] = (string) $record->payload( 'billing_city', '' );
+		}
+		if ( '' !== (string) $record->payload( 'billing_state', '' ) ) {
+			$billing_rows[ __( 'State / Province', 'idta-partial' ) ] = (string) $record->payload( 'billing_state', '' );
+		}
+		if ( '' !== (string) $record->payload( 'billing_zip', '' ) ) {
+			$billing_rows[ __( 'Postal code', 'idta-partial' ) ] = (string) $record->payload( 'billing_zip', '' );
+		}
+		if ( '' !== (string) $record->payload( 'billing_country', '' ) ) {
+			$billing_rows[ __( 'Country', 'idta-partial' ) ] = (string) $record->payload( 'billing_country', '' );
+		}
+
+		if ( empty( $billing_rows ) ) {
+			echo '<div class="idta-partial-panel idta-partial-panel--billing">';
+			printf( '<h3>%s</h3>', esc_html__( 'Billing details', 'idta-partial' ) );
+			if ( '' !== $record->billing_details ) {
+				echo '<div style="white-space: pre-line; line-height: 1.6; font-size: 13px; color: #2c3338;">' . esc_html( $record->billing_details ) . '</div>';
+			} else {
+				printf( '<p class="idta-partial-sub">%s</p>', esc_html__( 'No billing details captured yet.', 'idta-partial' ) );
+			}
+			echo '</div>';
+		} else {
+			$this->render_panel( __( 'Billing details', 'idta-partial' ), $billing_rows );
+		}
 	}
 
 	/**

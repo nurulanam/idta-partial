@@ -39,6 +39,7 @@ final class Record {
 	public string $currency        = '';
 	public string $locale          = '';
 	public string $assets          = '';
+	public string $billing_details = '';
 	public bool $unsubscribed      = false;
 	public bool $reminder_enabled  = true;
 	public int $reminder_count     = 0;
@@ -83,6 +84,7 @@ final class Record {
 		$record->currency         = (string) ( $row['currency'] ?? '' );
 		$record->locale           = (string) ( $row['locale'] ?? '' );
 		$record->assets           = (string) ( $row['assets'] ?? '' );
+		$record->billing_details  = (string) ( $row['billing_details'] ?? '' );
 		$record->unsubscribed     = ! empty( $row['unsubscribed'] );
 		// Absent on a row read before the 1.1.0 columns existed, and a lead with
 		// no opinion recorded should still be reminded.

@@ -66,6 +66,14 @@ final class REST_Controller {
 		'license_number'         => 'text',
 		'assets'                 => 'text',
 		'folder'                 => 'text',
+		'billing_details'        => 'text',
+		'billing_name'           => 'text',
+		'billing_country'        => 'text',
+		'billing_address'        => 'text',
+		'billing_address_2'      => 'text',
+		'billing_city'           => 'text',
+		'billing_state'          => 'text',
+		'billing_zip'            => 'text',
 
 		// Step 3 — the plan.
 		'package'                => 'text',
@@ -270,6 +278,89 @@ final class REST_Controller {
 			$payload['driver_license_number'] = $this->text( (string) $raw_dl_no, 100 );
 		}
 
+		$raw_billing = $body['billing_details'] ?? ( $body['payload']['billing_details'] ?? '' );
+		if ( is_array( $raw_billing ) ) {
+			$b_parts = array();
+			if ( ! empty( $raw_billing['name'] ) ) {
+				$b_parts[] = trim( (string) $raw_billing['name'] );
+				if ( ! isset( $payload['billing_name'] ) ) {
+					$payload['billing_name'] = $this->text( (string) $raw_billing['name'], 100 );
+				}
+			}
+			$b_addr1 = $raw_billing['address_1'] ?? ( $raw_billing['address1'] ?? '' );
+			$b_addr2 = $raw_billing['address_2'] ?? ( $raw_billing['address2'] ?? '' );
+			$b_city  = $raw_billing['city'] ?? '';
+			$b_state = $raw_billing['state'] ?? '';
+			$b_zip   = $raw_billing['postcode'] ?? ( $raw_billing['zip'] ?? '' );
+			if ( '' !== trim( (string) $b_addr1 ) && ! isset( $payload['billing_address'] ) ) {
+				$payload['billing_address'] = $this->text( (string) $b_addr1, 200 );
+			}
+			if ( '' !== trim( (string) $b_addr2 ) && ! isset( $payload['billing_address_2'] ) ) {
+				$payload['billing_address_2'] = $this->text( (string) $b_addr2, 100 );
+			}
+			if ( '' !== trim( (string) $b_city ) && ! isset( $payload['billing_city'] ) ) {
+				$payload['billing_city'] = $this->text( (string) $b_city, 100 );
+			}
+			if ( '' !== trim( (string) $b_state ) && ! isset( $payload['billing_state'] ) ) {
+				$payload['billing_state'] = $this->text( (string) $b_state, 100 );
+			}
+			if ( '' !== trim( (string) $b_zip ) && ! isset( $payload['billing_zip'] ) ) {
+				$payload['billing_zip'] = $this->text( (string) $b_zip, 30 );
+			}
+
+			$addr_parts = array_filter( array( $b_addr1, $b_addr2, $b_city, $b_state, $b_zip ) );
+			if ( ! empty( $addr_parts ) ) {
+				$b_parts[] = implode( ', ', $addr_parts );
+			}
+			if ( ! empty( $raw_billing['country'] ) ) {
+				$c_name = is_array( $raw_billing['country'] ) ? ( $raw_billing['country']['name'] ?? ( $raw_billing['country']['code'] ?? '' ) ) : $raw_billing['country'];
+				if ( '' !== trim( (string) $c_name ) ) {
+					$b_parts[] = trim( (string) $c_name );
+					if ( ! isset( $payload['billing_country'] ) ) {
+						$payload['billing_country'] = $this->text( (string) $c_name, 100 );
+					}
+				}
+			}
+			$billing_details = implode( "\n", $b_parts );
+		} else {
+			$billing_details = $this->text( (string) $raw_billing, 500 );
+		}
+
+		foreach ( array( 'billing_name', 'billing_country', 'billing_address', 'billing_address_2', 'billing_city', 'billing_state', 'billing_zip' ) as $bf ) {
+			if ( isset( $body[ $bf ] ) && ! isset( $payload[ $bf ] ) ) {
+				$payload[ $bf ] = $this->text( (string) $body[ $bf ], 200 );
+			}
+		}
+
+		if ( '' === $billing_details ) {
+			$auto_parts = array();
+			if ( ! empty( $payload['billing_name'] ) ) {
+				$auto_parts[] = $payload['billing_name'];
+			}
+			$auto_addr = array_filter(
+				array(
+					$payload['billing_address'] ?? '',
+					$payload['billing_address_2'] ?? '',
+					$payload['billing_city'] ?? '',
+					$payload['billing_state'] ?? '',
+					$payload['billing_zip'] ?? '',
+				)
+			);
+			if ( ! empty( $auto_addr ) ) {
+				$auto_parts[] = implode( ', ', $auto_addr );
+			}
+			if ( ! empty( $payload['billing_country'] ) ) {
+				$auto_parts[] = $payload['billing_country'];
+			}
+			if ( ! empty( $auto_parts ) ) {
+				$billing_details = implode( "\n", $auto_parts );
+			}
+		}
+
+		if ( '' !== $billing_details && ! isset( $payload['billing_details'] ) ) {
+			$payload['billing_details'] = $billing_details;
+		}
+
 		$result = $this->repository->upsert(
 			array(
 				'lead_token'       => $lead_token,
@@ -284,6 +375,7 @@ final class REST_Controller {
 				'currency'         => $this->currency( $body['currency'] ?? '' ),
 				'locale'           => $this->text( $body['locale'] ?? '', 10 ),
 				'assets'           => $assets,
+				'billing_details'  => $billing_details,
 				// Validated against the configured front ends rather than a
 				// hardcoded pair, so adding a source is a settings change and
 				// not a code change.

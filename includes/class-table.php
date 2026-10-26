@@ -19,7 +19,7 @@ final class Table {
 	/**
 	 * Schema version. Bump when the CREATE TABLE below changes.
 	 */
-	public const DB_VERSION = '1.4.1';
+	public const DB_VERSION = '1.4.2';
 
 	/**
 	 * Option recording the installed schema version.
@@ -92,7 +92,7 @@ final class Table {
 	 * Cheap enough to call on every request: one option read when up to date.
 	 */
 	public static function maybe_install(): void {
-		if ( get_option( self::VERSION_OPTION ) === self::DB_VERSION && self::has_column( 'assets' ) ) {
+		if ( get_option( self::VERSION_OPTION ) === self::DB_VERSION && self::has_column( 'assets' ) && self::has_column( 'billing_details' ) ) {
 			return;
 		}
 
@@ -156,6 +156,7 @@ final class Table {
 			currency char(3) NOT NULL DEFAULT '',
 			locale varchar(10) NOT NULL DEFAULT '',
 			assets varchar(100) NOT NULL DEFAULT '',
+			billing_details text NULL,
 			payload longtext NULL,
 			ip_hash char(64) NOT NULL DEFAULT '',
 			unsubscribed tinyint(1) NOT NULL DEFAULT 0,
@@ -178,10 +179,15 @@ final class Table {
 
 		dbDelta( $sql );
 
-		// Ensure assets column exists even if dbDelta did not alter it.
+		// Ensure assets and billing_details columns exist even if dbDelta did not alter them.
 		if ( ! self::has_column( 'assets' ) ) {
 			// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
 			$wpdb->query( "ALTER TABLE {$table} ADD COLUMN assets varchar(100) NOT NULL DEFAULT '' AFTER locale" );
+		}
+
+		if ( ! self::has_column( 'billing_details' ) ) {
+			// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+			$wpdb->query( "ALTER TABLE {$table} ADD COLUMN billing_details text NULL AFTER assets" );
 		}
 
 		update_option( self::VERSION_OPTION, self::DB_VERSION );
