@@ -241,7 +241,9 @@ final class REST_Controller {
 			);
 		}
 
-		if ( ! Request_Context::rate_limit_allows( $email, (int) $this->settings->get( 'rate_limit', 20 ) ) ) {
+		$rate_limit = (int) $this->settings->get( 'rate_limit', 20 );
+
+		if ( $rate_limit > 0 && ! Request_Context::rate_limit_allows( $email, $rate_limit ) ) {
 			return new \WP_Error(
 				'idta_partial_rate_limited',
 				__( 'Too many submissions. Try again later.', 'idta-partial' ),
