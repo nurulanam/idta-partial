@@ -25,7 +25,7 @@ out_dir="${1:-$plugin_dir}"
 work="$( mktemp -d )"
 stage="$work/idta-partial"
 
-trap 'rm -rf "$work"' EXIT
+trap 'chmod -R u+w "$work" 2>/dev/null || true; rm -rf "$work"' EXIT
 
 command -v zip >/dev/null || { echo "zip is required." >&2; exit 1; }
 command -v php >/dev/null || { echo "php is required." >&2; exit 1; }
@@ -59,12 +59,22 @@ grep -q 'Plugin Name:' "$stage/idta-partial.php" || {
 	exit 1
 }
 
-mkdir -p "$out_dir"
-rm -f "$out_dir/idta-partial.zip"
+version="$( grep -m 1 "const VERSION" "$stage/idta-partial.php" | sed -E "s/.*'([^']+)'.*/\1/" )"
+if [ -z "$version" ]; then
+	version="$( grep -m 1 -E '^[[:space:]]*\*[[:space:]]*Version:[[:space:]]*' "$stage/idta-partial.php" | awk '{print $NF}' )"
+fi
 
-( cd "$work" && zip -qr9 "$out_dir/idta-partial.zip" idta-partial )
+mkdir -p "$out_dir"
+rm -f "$out_dir/idta-partial.zip" "$out_dir/idta-partial-${version}.zip" "$out_dir/idta-partial-v${version}.zip"
+
+( cd "$work" && zip -qr9 "$out_dir/idta-partial-${version}.zip" idta-partial )
+cp -f "$out_dir/idta-partial-${version}.zip" "$out_dir/idta-partial-v${version}.zip"
+cp -f "$out_dir/idta-partial-${version}.zip" "$out_dir/idta-partial.zip"
 
 echo
-echo "Built $out_dir/idta-partial.zip"
-du -sh "$out_dir/idta-partial.zip" | awk '{print "Archive:  " $1}'
+echo "Built archives:"
+echo " - $out_dir/idta-partial-${version}.zip"
+echo " - $out_dir/idta-partial-v${version}.zip"
+echo " - $out_dir/idta-partial.zip"
+du -sh "$out_dir/idta-partial-${version}.zip" | awk '{print "Archive:  " $1}'
 du -sh "$stage" | awk '{print "Unpacked: " $1}'

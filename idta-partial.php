@@ -3,7 +3,7 @@
  * Plugin Name:       IDTA Partial Applications
  * Plugin URI:        https://webclyde.com/
  * Description:       Captures an eIDTA application at the end of step 3, reminds the customer once if no order follows, and marks the lead converted when the WooCommerce order arrives.
- * Version:           1.4.2
+ * Version:           1.4.4
  * Requires at least: 6.0
  * Requires PHP:      8.0
  * Author:            Webclyde LLC
@@ -25,7 +25,7 @@ namespace IDTA\Partial;
 
 defined( 'ABSPATH' ) || exit;
 
-const VERSION     = '1.4.2';
+const VERSION     = '1.4.3';
 const PLUGIN_FILE = __FILE__;
 
 require_once __DIR__ . '/includes/class-autoloader.php';

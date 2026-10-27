@@ -339,13 +339,27 @@ final class Repository {
 	 * Used in payment_complete mode, where reaching the pay page is not yet a
 	 * conversion but is worth knowing about.
 	 *
-	 * @param int $id       Row ID.
-	 * @param int $order_id Order ID.
+	 * Only updates when no order is attached yet, unless $force is true.
+	 * If the lead was previously marked converted, restores it back to 'new'.
+	 *
+	 * @param int  $id       Row ID.
+	 * @param int  $order_id Order ID.
+	 * @param bool $force    Whether to update even if an order was already attached.
 	 *
 	 * @return bool
 	 */
-	public function attach_order( int $id, int $order_id ): bool {
-		return $this->update( $id, array( 'order_id' => $order_id ), 'order_id = 0', array() );
+	public function attach_order( int $id, int $order_id, bool $force = false ): bool {
+		$columns = array( 'order_id' => $order_id );
+
+		$lead = $this->find( $id );
+		if ( null !== $lead && Record::STATUS_CONVERTED === $lead->status ) {
+			$columns['status']       = Record::STATUS_NEW;
+			$columns['converted_at'] = null;
+		}
+
+		$guard = $force ? '' : 'order_id = 0';
+
+		return $this->update( $id, $columns, $guard, array() );
 	}
 
 	/**

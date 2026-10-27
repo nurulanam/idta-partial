@@ -252,6 +252,34 @@ final class Admin_Page {
 				$this->notice( $result['sent'] ? 'success' : 'error', $result['reason'] );
 				break;
 
+			case 'create_order':
+				$order_result = $this->create_order_for_lead( $record );
+
+				if ( is_wp_error( $order_result ) ) {
+					$this->notice(
+						'error',
+						sprintf(
+							/* translators: %s: error message. */
+							__( 'Failed to create order: %s', 'idta-partial' ),
+							$order_result->get_error_message()
+						)
+					);
+				} else {
+					$order_id  = $order_result->get_id();
+					$order_url = $this->order_url( $order_id );
+
+					$this->notice(
+						'success',
+						sprintf(
+							/* translators: 1: order ID, 2: order URL. */
+							__( 'WooCommerce order #%1$d created successfully. <a href="%2$s" target="_blank">View Order &rarr;</a>', 'idta-partial' ),
+							$order_id,
+							esc_url( $order_url )
+						)
+					);
+				}
+				break;
+
 			default:
 				$this->notice( 'error', __( 'Unknown action.', 'idta-partial' ) );
 		}
@@ -303,7 +331,7 @@ final class Admin_Page {
 		printf(
 			'<div class="notice notice-%1$s is-dismissible"><p>%2$s</p></div>',
 			'success' === ( $notice['type'] ?? '' ) ? 'success' : 'error',
-			esc_html( (string) $notice['message'] )
+			wp_kses_post( (string) $notice['message'] )
 		);
 	}
 
@@ -774,6 +802,43 @@ final class Admin_Page {
 				esc_url( $this->action_url( $record, 'send_now', $back ) ),
 				esc_attr( wp_json_encode( __( 'Send this customer a reminder email now?', 'idta-partial' ) ) ),
 				esc_html__( 'Send now', 'idta-partial' )
+			);
+		}
+
+		if ( $record->order_id > 0 ) {
+			$links[] = sprintf(
+				'<a href="%1$s" target="_blank">%2$s</a>',
+				esc_url( $this->order_url( $record->order_id ) ),
+				esc_html__( 'View order', 'idta-partial' )
+			);
+			$links[] = sprintf(
+				'<a href="%1$s" onclick="return confirm(%2$s)">%3$s</a>',
+				esc_url( $this->action_url( $record, 'create_order', $back ) ),
+				esc_attr(
+					wp_json_encode(
+						sprintf(
+							/* translators: %d: order ID. */
+							__( 'An order (#%d) already exists for this lead. Create another order?', 'idta-partial' ),
+							$record->order_id
+						)
+					)
+				),
+				esc_html__( 'Create order again', 'idta-partial' )
+			);
+		} else {
+			$links[] = sprintf(
+				'<a href="%1$s" onclick="return confirm(%2$s)">%3$s</a>',
+				esc_url( $this->action_url( $record, 'create_order', $back ) ),
+				esc_attr(
+					wp_json_encode(
+						sprintf(
+							/* translators: %d: lead ID. */
+							__( 'Create a WooCommerce order from lead #%d?', 'idta-partial' ),
+							$record->id
+						)
+					)
+				),
+				esc_html__( 'Create order', 'idta-partial' )
 			);
 		}
 
@@ -1546,6 +1611,306 @@ final class Admin_Page {
 		}
 
 		return admin_url( 'post.php?post=' . $order_id . '&action=edit' );
+	}
+
+	/**
+	 * Create a WooCommerce order using all details available on a partial application lead.
+	 *
+	 * @param Record $record Lead.
+	 *
+	 * @return \WC_Order|\WP_Error Order on success, WP_Error on failure.
+	 */
+	public function create_order_for_lead( Record $record ) {
+		if ( ! function_exists( 'wc_create_order' ) ) {
+			return new \WP_Error( 'woocommerce_missing', __( 'WooCommerce is not active.', 'idta-partial' ) );
+		}
+
+		// Billing name: prefer discrete billing_name, fall back to record names.
+		$billing_name = trim( (string) $record->payload( 'billing_name', '' ) );
+		if ( '' !== $billing_name ) {
+			$name_parts   = preg_split( '/\s+/', $billing_name, 2 );
+			$b_first_name = $name_parts[0] ?? '';
+			$b_last_name  = $name_parts[1] ?? '';
+		} else {
+			$b_first_name = $record->first_name;
+			$b_last_name  = $record->last_name;
+		}
+
+		// Billing country: resolve to 2-letter ISO code.
+		$b_country_raw = $record->payload( 'billing_country', '' );
+		if ( empty( $b_country_raw ) ) {
+			$b_country_raw = $record->payload( 'country_of_residence', '' );
+		}
+		if ( empty( $b_country_raw ) ) {
+			$b_country_raw = $record->location;
+		}
+		$billing_country_code = $this->resolve_country_code( $b_country_raw );
+
+		$billing_address = array(
+			'first_name' => $b_first_name,
+			'last_name'  => $b_last_name,
+			'address_1'  => (string) $record->payload( 'billing_address', '' ),
+			'address_2'  => (string) $record->payload( 'billing_address_2', '' ),
+			'city'       => (string) $record->payload( 'billing_city', '' ),
+			'state'      => (string) $record->payload( 'billing_state', '' ),
+			'postcode'   => (string) $record->payload( 'billing_zip', '' ),
+			'country'    => $billing_country_code,
+			'email'      => $record->email,
+			'phone'      => $record->phone,
+		);
+
+		// Shipping address mirrors billing address by default.
+		$shipping_address = array(
+			'first_name' => $b_first_name,
+			'last_name'  => $b_last_name,
+			'address_1'  => $billing_address['address_1'],
+			'address_2'  => $billing_address['address_2'],
+			'city'       => $billing_address['city'],
+			'state'      => $billing_address['state'],
+			'postcode'   => $billing_address['postcode'],
+			'country'    => $billing_country_code,
+			'phone'      => $record->phone,
+		);
+
+		try {
+			$order = wc_create_order(
+				array(
+					'status' => 'pending',
+				)
+			);
+
+			if ( is_wp_error( $order ) || ! $order instanceof \WC_Order ) {
+				return is_wp_error( $order ) ? $order : new \WP_Error( 'order_creation_failed', __( 'Could not instantiate WooCommerce order.', 'idta-partial' ) );
+			}
+
+			// Attach existing customer account if email matches.
+			if ( ! empty( $record->email ) ) {
+				$existing_user = get_user_by( 'email', $record->email );
+				if ( $existing_user instanceof \WP_User ) {
+					$order->set_customer_id( $existing_user->ID );
+				}
+			}
+
+			// Currency.
+			if ( ! empty( $record->currency ) ) {
+				$order->set_currency( strtoupper( $record->currency ) );
+			}
+
+			$order->set_address( $billing_address, 'billing' );
+			$order->set_address( $shipping_address, 'shipping' );
+
+			// Add main plan product or fee fallback.
+			$added_main_item = false;
+			if ( $record->product_id > 0 && function_exists( 'wc_get_product' ) ) {
+				$product = wc_get_product( $record->product_id );
+				if ( $product ) {
+					$order->add_product( $product, 1 );
+					$added_main_item = true;
+				}
+			}
+
+			if ( ! $added_main_item ) {
+				$plan_name = (string) $record->payload( 'summary_package', (string) $record->payload( 'package', '' ) );
+				if ( '' === $plan_name ) {
+					$plan_name = $this->application_label( $record );
+				}
+				$validity = (string) $record->payload( 'validity_label', '' );
+				if ( '' !== $validity ) {
+					$plan_name .= ' (' . $validity . ')';
+				}
+				$raw_price = (string) $record->payload( 'plan_price', '' );
+				$price_num = (float) preg_replace( '/[^0-9.]/', '', $raw_price );
+				if ( $price_num > 0 ) {
+					$fee = new \WC_Order_Item_Fee();
+					$fee->set_name( $plan_name );
+					$fee->set_total( (string) $price_num );
+					$fee->set_tax_status( 'none' );
+					$order->add_item( $fee );
+				}
+			}
+
+			// Add cart items (add-ons).
+			$cart_items = $record->payload( 'cart_items', array() );
+			if ( is_array( $cart_items ) ) {
+				foreach ( $cart_items as $item ) {
+					if ( ! is_array( $item ) ) {
+						continue;
+					}
+					$item_id  = $item['id'] ?? '';
+					$qty      = max( 1, (int) ( $item['qty'] ?? 1 ) );
+					$add_prod = ( is_numeric( $item_id ) && (int) $item_id > 0 && function_exists( 'wc_get_product' ) )
+						? wc_get_product( (int) $item_id )
+						: null;
+
+					if ( $add_prod ) {
+						$order->add_product( $add_prod, $qty );
+					} else {
+						$fee_name  = (string) ( $item['name'] ?? __( 'Add-on', 'idta-partial' ) );
+						$raw_price = (string) ( $item['price'] ?? '0' );
+						$fee_price = (float) preg_replace( '/[^0-9.]/', '', $raw_price );
+						$total     = $fee_price * $qty;
+						if ( $total > 0 ) {
+							$fee = new \WC_Order_Item_Fee();
+							$fee->set_name( $fee_name );
+							$fee->set_total( (string) $total );
+							$fee->set_tax_status( 'none' );
+							$order->add_item( $fee );
+						}
+					}
+				}
+			}
+
+			// Calculate totals.
+			$order->calculate_totals();
+
+			// Store metadata matching idta-pdf expectations.
+			$order->update_meta_data( '_idp_order_from', $record->source ?: 'idta' );
+			$order->update_meta_data( '_idp_first_name', $record->first_name );
+			$order->update_meta_data( '_idp_last_name', $record->last_name );
+			$order->update_meta_data( '_idp_middle_name', (string) $record->payload( 'middle_name', '' ) );
+			$order->update_meta_data( '_idp_phone', $record->phone );
+			$order->update_meta_data( '_idp_date_of_birth', (string) $record->payload( 'date_of_birth', '' ) );
+			$order->update_meta_data( '_idp_gender', (string) $record->payload( 'gender', '' ) );
+
+			$country_of_birth = $this->country_name( $record, 'country_of_birth' );
+			if ( '' !== $country_of_birth ) {
+				$order->update_meta_data( '_idp_country_of_birth', $country_of_birth );
+			}
+
+			$country_of_residence = $this->country_name( $record, 'country_of_residence' );
+			if ( '' !== $country_of_residence ) {
+				$order->update_meta_data( '_idp_country_of_residence', $country_of_residence );
+			}
+
+			$country_of_issuance = $this->country_name( $record, 'license_issued_country' );
+			if ( '' === $country_of_issuance ) {
+				$country_of_issuance = $this->country_name( $record, 'destination_country' );
+			}
+			if ( '' !== $country_of_issuance ) {
+				$order->update_meta_data( '_idp_country_of_issuance', $country_of_issuance );
+			}
+
+			$order->update_meta_data( '_idp_driver_license_number', $record->driver_license_number() );
+
+			// License categories.
+			$cats       = $record->payload( 'license_categories' );
+			$cat_values = array();
+			if ( is_array( $cats ) ) {
+				foreach ( $cats as $c ) {
+					if ( is_array( $c ) ) {
+						$cat_values[] = trim( (string) ( $c['value'] ?? '' ) );
+					} elseif ( is_string( $c ) ) {
+						$cat_values[] = trim( $c );
+					}
+				}
+			}
+			$cat_string = implode( ', ', array_filter( $cat_values ) );
+			if ( '' !== $cat_string ) {
+				$order->update_meta_data( '_idp_license_category', $cat_string );
+			}
+
+			if ( $record->validity_years > 0 ) {
+				$order->update_meta_data( '_idp_validity_years', $record->validity_years );
+			}
+
+			if ( '' !== $record->application_type ) {
+				$order->update_meta_data( '_idp_format', $record->application_type );
+			}
+
+			$assets = ! empty( $record->assets ) ? $record->assets : (string) $record->payload( 'folder', '' );
+			if ( '' !== $assets ) {
+				$order->update_meta_data( '_idp_assets', $assets );
+			}
+
+			if ( '' !== $record->lead_token ) {
+				$order->update_meta_data( '_idp_lead_token', $record->lead_token );
+			}
+
+			$order->update_meta_data( Conversion_Listener::PARTIAL_META, $record->id );
+
+			// Save the order.
+			$order->save();
+
+			// Add order note with payment URL.
+			$payment_url = method_exists( $order, 'get_checkout_payment_url' ) ? $order->get_checkout_payment_url() : '';
+			$order->add_order_note(
+				sprintf(
+					/* translators: 1: lead ID, 2: checkout payment URL */
+					__( 'Order manually created from Partial Application Lead #%1$d. Customer payment URL: %2$s', 'idta-partial' ),
+					$record->id,
+					$payment_url
+				)
+			);
+
+			// Attach order to lead without changing lead status to converted (order is pending).
+			$this->repository->attach_order( $record->id, $order->get_id(), true );
+			$this->scheduler->note_converted( $record->id, $order->get_id() );
+
+			return $order;
+		} catch ( \Throwable $e ) {
+			return new \WP_Error( 'order_creation_exception', $e->getMessage() );
+		}
+	}
+
+	/**
+	 * Extract just the country name from a record's payload field.
+	 *
+	 * @param Record $record Lead.
+	 * @param string $key    Payload key.
+	 *
+	 * @return string
+	 */
+	private function country_name( Record $record, string $key ): string {
+		$country = $record->payload( $key );
+
+		if ( is_array( $country ) ) {
+			$name = trim( (string) ( $country['name'] ?? '' ) );
+			if ( '' !== $name ) {
+				return $name;
+			}
+
+			return trim( (string) ( $country['code'] ?? '' ) );
+		}
+
+		return is_scalar( $country ) ? trim( (string) $country ) : '';
+	}
+
+	/**
+	 * Resolve a country string or array to a 2-letter ISO country code.
+	 *
+	 * @param mixed $country Country name, code, or array with 'code'/'name'.
+	 *
+	 * @return string
+	 */
+	private function resolve_country_code( $country ): string {
+		if ( is_array( $country ) ) {
+			$code = trim( (string) ( $country['code'] ?? '' ) );
+			if ( 2 === strlen( $code ) ) {
+				return strtoupper( $code );
+			}
+
+			$country = trim( (string) ( $country['name'] ?? '' ) );
+		}
+
+		$country = is_scalar( $country ) ? trim( (string) $country ) : '';
+
+		if ( '' === $country ) {
+			return '';
+		}
+
+		if ( 2 === strlen( $country ) ) {
+			return strtoupper( $country );
+		}
+
+		if ( function_exists( 'WC' ) && isset( WC()->countries ) ) {
+			$all  = WC()->countries->get_countries();
+			$code = array_search( strtolower( $country ), array_map( 'strtolower', $all ), true );
+			if ( false !== $code ) {
+				return (string) $code;
+			}
+		}
+
+		return $country;
 	}
 
 	// -------------------------------------------------------------------------
