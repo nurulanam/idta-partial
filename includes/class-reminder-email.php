@@ -264,13 +264,24 @@ final class Reminder_Email extends \WC_Email {
 	/**
 	 * A human description of what the customer was buying.
 	 *
+	 * Empty when the plan was never chosen (a lead captured before the plan step
+	 * was reached) — the same rule as Admin_Page::application_label(). Defaulting
+	 * to the printed wording would tell a customer who never picked a package
+	 * that they had bought one.
+	 *
 	 * @param Record $record Lead.
 	 *
 	 * @return string
 	 */
 	private function plan_label( Record $record ): string {
-		return 'digital_only' === $record->application_type
-			? __( 'Digital copy only', 'idta-partial' )
-			: __( 'Printed permit and digital copy', 'idta-partial' );
+		if ( 'digital_only' === $record->application_type ) {
+			return __( 'Digital copy only', 'idta-partial' );
+		}
+
+		if ( 'print_digital' === $record->application_type ) {
+			return __( 'Printed permit and digital copy', 'idta-partial' );
+		}
+
+		return '';
 	}
 }

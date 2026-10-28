@@ -47,7 +47,7 @@ final class Settings {
 	 * @var array<string,string>
 	 */
 	public const DEFAULT_SOURCES = array(
-		'idta' => 'https://e-idta.com/application.html',
+		'idta' => 'https://e-idta.com/order.html',
 		'idpa' => '',
 	);
 

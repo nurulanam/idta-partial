@@ -204,7 +204,7 @@ earn it a reminder for an order already placed.
 ## Resume
 
 The reminder links to
-`…/application.html?resume=1&package=printed&validity=3&license_country=BD&destination_country=IT`
+`…/order.html?resume=1&package=printed&validity=3&license_country=BD&destination_country=IT`
 and makes **no API call**. Everything in that URL is application state; none of
 it is personal data, because a URL reaches browser history, CDN and proxy logs,
 the `Referer` header sent to every third party the page loads, and mail-provider

@@ -176,8 +176,51 @@ final class Plugin {
 		}
 
 		$this->migrate_resume_url();
+		$this->migrate_renamed_application_page();
 
 		update_option( self::VERSION_OPTION, VERSION );
+	}
+
+	/**
+	 * Repoint a saved reminder URL at the order page's current path.
+	 *
+	 * The application page was renamed from application.html to order.html. The
+	 * packaged default was updated with it, but a site that had ever saved the
+	 * settings screen keeps the URL it stored — so its reminder links kept
+	 * pointing at a path that now 404s, and a reminded customer landed nowhere.
+	 *
+	 * Only the two exact forms of the old packaged default are rewritten. A URL
+	 * someone typed themselves is left alone: the rename explains this one
+	 * value, not wherever they chose to host their form.
+	 */
+	private function migrate_renamed_application_page(): void {
+		$stored = get_option( Settings::OPTION_KEY );
+
+		if ( ! is_array( $stored ) || empty( $stored['sources'] ) || ! is_array( $stored['sources'] ) ) {
+			return;
+		}
+
+		$replaced = array(
+			'https://e-idta.com/application.html'     => 'https://e-idta.com/order.html',
+			'https://www.e-idta.com/application.html' => 'https://www.e-idta.com/order.html',
+		);
+
+		$changed = false;
+
+		foreach ( $stored['sources'] as $key => $url ) {
+			// Compare without a trailing slash so ".../application.html/" is
+			// caught too; the replacement is written in its canonical form.
+			$normalised = rtrim( trim( (string) $url ), '/' );
+
+			if ( isset( $replaced[ $normalised ] ) ) {
+				$stored['sources'][ $key ] = $replaced[ $normalised ];
+				$changed                   = true;
+			}
+		}
+
+		if ( $changed ) {
+			update_option( Settings::OPTION_KEY, $stored );
+		}
 	}
 
 	/**

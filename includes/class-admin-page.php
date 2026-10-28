@@ -557,9 +557,11 @@ final class Admin_Page {
 
 		$has_docs = '' !== $record->assets || '' !== (string) $record->payload( 'assets', (string) $record->payload( 'folder', '' ) );
 
+		$plan_label = $this->application_label( $record );
+
 		printf(
 			'<td>%1$s%2$s%3$s</td>',
-			esc_html( $this->application_label( $record ) ),
+			esc_html( '' !== $plan_label ? $plan_label : __( 'Plan not chosen', 'idta-partial' ) ),
 			$record->validity_years > 0
 				? '<div class="idta-partial-sub">' . esc_html(
 					sprintf(
@@ -1271,7 +1273,7 @@ final class Admin_Page {
 			printf(
 				'<tr>'
 				. '<td><input type="text" name="idta_partial[sources][%1$d][key]" value="%2$s" class="regular-text" placeholder="idta"></td>'
-				. '<td><input type="url" name="idta_partial[sources][%1$d][url]" value="%3$s" class="large-text" placeholder="https://example.com/application.html"></td>'
+				. '<td><input type="url" name="idta_partial[sources][%1$d][url]" value="%3$s" class="large-text" placeholder="https://example.com/order.html"></td>'
 				. '<td><button type="button" class="button-link idta-partial-danger idta-partial-row-remove" aria-label="%4$s">&times;</button></td>'
 				. '</tr>',
 				$index,
@@ -1430,14 +1432,27 @@ final class Admin_Page {
 	/**
 	 * What the customer was buying.
 	 *
+	 * Empty when the plan was never chosen — a lead captured before the plan
+	 * step was reached. That is a real state, not missing data: the storefront
+	 * deliberately leaves the plan blank in that case rather than reporting the
+	 * page's pre-selected defaults, so callers must not turn it back into a
+	 * package. Returning "Printed + digital" for anything that isn't
+	 * digital_only made an unchosen plan read as a deliberate one.
+	 *
 	 * @param Record $record Lead.
 	 *
 	 * @return string
 	 */
 	private function application_label( Record $record ): string {
-		return 'digital_only' === $record->application_type
-			? __( 'Digital only', 'idta-partial' )
-			: __( 'Printed + digital', 'idta-partial' );
+		if ( 'digital_only' === $record->application_type ) {
+			return __( 'Digital only', 'idta-partial' );
+		}
+
+		if ( 'print_digital' === $record->application_type ) {
+			return __( 'Printed + digital', 'idta-partial' );
+		}
+
+		return '';
 	}
 
 	/**
@@ -1717,6 +1732,13 @@ final class Admin_Page {
 				$validity = (string) $record->payload( 'validity_label', '' );
 				if ( '' !== $validity ) {
 					$plan_name .= ' (' . $validity . ')';
+				}
+				// A lead with no plan at all still converts into an order, so the
+				// fee needs *some* name. "Plan not chosen" is honest about where
+				// the total came from; application_label() returning a package
+				// here would invent a choice out of a blank.
+				if ( '' === $plan_name ) {
+					$plan_name = __( 'Plan not chosen', 'idta-partial' );
 				}
 				$raw_price = (string) $record->payload( 'plan_price', '' );
 				$price_num = (float) preg_replace( '/[^0-9.]/', '', $raw_price );
